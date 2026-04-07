@@ -24,7 +24,7 @@ export default function App() {
   }, [chats]);
 
   // =========================
-  // API CALL (STABLE)
+  // API CALL
   // =========================
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
@@ -110,7 +110,7 @@ export default function App() {
   };
 
   // =========================
-  // CREATE CHAT
+  // NEW CHAT
   // =========================
   const createNewChat = () => {
     const newChat = {
@@ -168,7 +168,6 @@ export default function App() {
             </div>
           ))}
 
-          {/* LOADING STATE */}
           {loading && (
             <div style={{ padding: 10, opacity: 0.6 }}>
               Bot is typing...
@@ -205,7 +204,7 @@ export default function App() {
 }
 
 /* =========================
-   STYLES
+   STYLES (FIXED)
 ========================= */
 const styles = {
   app: {
@@ -214,12 +213,14 @@ const styles = {
     fontFamily: "system-ui",
     background: "#ffffff"
   },
+
   sidebar: {
     width: 260,
-    borderRight: "1px solid "#e5e7eb",
+    borderRight: "1px solid #e5e7eb",
     padding: 10,
     background: "#f7f7f8"
   },
+
   newChat: {
     width: "100%",
     padding: 10,
@@ -229,22 +230,26 @@ const styles = {
     background: "#fff",
     cursor: "pointer"
   },
+
   chatItem: {
     padding: 10,
     borderRadius: 6,
     cursor: "pointer"
   },
+
   main: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     height: "100vh"
   },
+
   chatArea: {
     flex: 1,
     overflowY: "auto",
     padding: 10
   },
+
   bubble: {
     maxWidth: 700,
     padding: 12,
@@ -252,10 +257,12 @@ const styles = {
     border: "1px solid #e5e7eb",
     background: "#fff"
   },
+
   inputWrapper: {
     display: "flex",
     padding: 20
   },
+
   inputBar: {
     display: "flex",
     gap: 10,
@@ -267,12 +274,14 @@ const styles = {
     maxWidth: 800,
     margin: "0 auto"
   },
+
   input: {
     flex: 1,
     padding: 10,
     borderRadius: 6,
     border: "1px solid #d1d5db"
   },
+
   button: {
     padding: "8px 12px",
     borderRadius: 6,
