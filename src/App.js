@@ -1,53 +1,34 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 export default function App() {
 
-  const [messages, setMessages] = useState([]);
+  const [chats, setChats] = useState([
+    { id: 1, title: "Neuer Chat", messages: [] }
+  ]);
+
+  const [activeChatId, setActiveChatId] = useState(1);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [chatId, setChatId] = useState(null);
 
   const chatEndRef = useRef(null);
 
+  const activeChat = chats.find(c => c.id === activeChatId);
+  const isEmptyChat = activeChat?.messages.length === 0;
+
   // =========================
-  // 📡 COMMUNICATION
+  // AUTO SCROLL (FIXED)
   // =========================
   useEffect(() => {
-
-    window.parent.postMessage({ type: "ready" }, "*");
-
-    window.onmessage = async (event) => {
-      const data = event.data;
-      if (!data) return;
-
-      if (data.type === "init") {
-        setChatId(data.chatId || null);
-      }
-
-      if (data.type === "user-message") {
-        await handleUserMessage(data.text, data.chatId);
-      }
-    };
-
-  }, []);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
 
   // =========================
-  // 🤖 CHAT LOGIC
+  // CHAT SEND FUNCTION (STABLE)
   // =========================
-  const handleUserMessage = async (text, wixChatId) => {
-
-    setMessages(prev => [
-      ...prev,
-      { role: "user", text }
-    ]);
-
-    setLoading(true);
-
-    sendHeight();
-
+  const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
-
       const res = await fetch(
         "https://flowise-1-4fly.onrender.com/api/v1/prediction/e20bf3ea-8f22-4c1b-95d0-209df14bd2ed",
         {
@@ -55,145 +36,249 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             question: text,
-            chatId: wixChatId || chatId
+            chatId: currentChatId
           })
         }
       );
 
       const data = await res.json();
+      const aiText = data.text || data.answer || "Keine Antwort";
 
-      const aiText = data.text || data.answer || "No response received";
+      setChats(prev =>
+        prev.map(chat => {
+          if (chat.id !== currentChatId) return chat;
 
-      setMessages(prev => [
-        ...prev,
-        { role: "assistant", text: aiText }
-      ]);
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              { role: "ai", text: aiText }
+            ],
+            title: isFirstMessage
+              ? (text.length > 30 ? text.slice(0, 30) + "..." : text)
+              : chat.title
+          };
+        })
+      );
 
     } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        { role: "assistant", text: "Something went wrong" }
-      ]);
+      setChats(prev =>
+        prev.map(chat =>
+          chat.id === currentChatId
+            ? {
+                ...chat,
+                messages: [
+                  ...chat.messages,
+                  { role: "ai", text: "Error generating response" }
+                ]
+              }
+            : chat
+        )
+      );
     }
 
     setLoading(false);
+  }, []);
 
-    sendHeight();
+  // =========================
+  // SEND MESSAGE
+  // =========================
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+
+    const userText = input;
+    const currentChatId = activeChatId;
+    const isFirstMessage = activeChat?.messages.length === 0;
+
+    setChats(prev =>
+      prev.map(chat =>
+        chat.id === currentChatId
+          ? {
+              ...chat,
+              messages: [
+                ...chat.messages,
+                { role: "user", text: userText }
+              ]
+            }
+          : chat
+      )
+    );
+
+    setInput("");
+    setLoading(true);
+
+    await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
   // =========================
-  // 📏 RESIZE WIX
+  // CREATE CHAT
   // =========================
-  const sendHeight = () => {
-    const height = document.documentElement.scrollHeight;
+  const createNewChat = () => {
+    const newChat = {
+      id: Date.now(),
+      title: "New Chat",
+      messages: []
+    };
 
-    window.parent.postMessage({
-      type: "resize",
-      height
-    }, "*");
+    setChats(prev => [newChat, ...prev]);
+    setActiveChatId(newChat.id);
   };
 
-  // =========================
-  // 📜 SCROLL
-  // =========================
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 50);
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
-
-  // =========================
-  // UI
-  // =========================
   return (
     <div style={styles.app}>
 
-      <div style={styles.chatArea}>
+      {/* SIDEBAR */}
+      <div style={styles.sidebar}>
+        <button onClick={createNewChat} style={styles.newChat}>
+          + New Chat
+        </button>
 
-        {messages.map((m, i) => (
+        {chats.map(chat => (
           <div
-            key={i}
+            key={chat.id}
+            onClick={() => setActiveChatId(chat.id)}
             style={{
-              display: "flex",
-              justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-              padding: 10
+              ...styles.chatItem,
+              background: chat.id === activeChatId ? "#e5e7eb" : "transparent"
             }}
           >
-            <div style={styles.bubble}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {m.text}
-              </ReactMarkdown>
-            </div>
+            {chat.title}
           </div>
         ))}
-
-        {/* 🤖 TYPING INDICATOR */}
-        {loading && (
-          <div style={{ display: "flex", padding: 10 }}>
-            <div style={styles.bubble}>
-              <Typing />
-            </div>
-          </div>
-        )}
-
-        <div ref={chatEndRef} />
       </div>
 
+      {/* MAIN */}
+      <div style={styles.main}>
+
+        {/* CHAT AREA */}
+        <div style={styles.chatArea}>
+          {activeChat?.messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+                padding: 10
+              }}
+            >
+              <div style={styles.bubble}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {m.text}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ))}
+
+          {/* LOADING INDICATOR */}
+          {loading && (
+            <div style={{ padding: 10, opacity: 0.6 }}>
+              Bot is typing...
+            </div>
+          )}
+
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* INPUT */}
+        <div style={styles.inputWrapper}>
+          <div style={styles.inputBar}>
+
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type a message..."
+              style={styles.input}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+              }}
+            />
+
+            <button onClick={sendMessage} style={styles.button}>
+              Send
+            </button>
+
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
 
-// =========================
-// ⏳ TYPING (ENGLISH UI)
-// =========================
-function Typing() {
-  return (
-    <div style={{ display: "flex", gap: 5 }}>
-      <span>Thinking</span>
-      <span className="dot">.</span>
-      <span className="dot">.</span>
-      <span className="dot">.</span>
-
-      <style>
-        {`
-          .dot {
-            animation: blink 1.2s infinite;
-          }
-
-          @keyframes blink {
-            0% { opacity: 0.2; }
-            50% { opacity: 1; }
-            100% { opacity: 0.2; }
-          }
-        `}
-      </style>
-    </div>
-  );
-}
-
-// =========================
-// 🎨 STYLE
-// =========================
+/* =========================
+   STYLES
+========================= */
 const styles = {
   app: {
     display: "flex",
-    flexDirection: "column",
-    fontFamily: "system-ui"
+    height: "100vh",
+    fontFamily: "system-ui",
+    background: "#ffffff"
   },
-
+  sidebar: {
+    width: 260,
+    borderRight: "1px solid #e5e7eb",
+    padding: 10,
+    background: "#f7f7f8"
+  },
+  newChat: {
+    width: "100%",
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer"
+  },
+  chatItem: {
+    padding: 10,
+    borderRadius: 6,
+    cursor: "pointer"
+  },
+  main: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    height: "100vh"
+  },
   chatArea: {
+    flex: 1,
+    overflowY: "auto",
     padding: 10
   },
-
   bubble: {
     maxWidth: 700,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 8,
     border: "1px solid #e5e7eb",
     background: "#fff"
+  },
+  inputWrapper: {
+    display: "flex",
+    padding: 20
+  },
+  inputBar: {
+    display: "flex",
+    gap: 10,
+    padding: 10,
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    background: "#fff",
+    width: "100%",
+    maxWidth: 800,
+    margin: "0 auto"
+  },
+  input: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db"
+  },
+  button: {
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#f3f4f6",
+    cursor: "pointer"
   }
 };
