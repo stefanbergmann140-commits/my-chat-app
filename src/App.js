@@ -241,7 +241,7 @@ const styles = {
     flex: 1,
     display: "flex",
     flexDirection: "column",
-    height: "100vh"
+    overflow: "hidden"
   },
 
   chatArea: {
