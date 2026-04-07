@@ -15,17 +15,16 @@ export default function App() {
   const chatEndRef = useRef(null);
 
   const activeChat = chats.find(c => c.id === activeChatId);
-  const isEmptyChat = activeChat?.messages.length === 0;
 
   // =========================
-  // AUTO SCROLL (FIXED)
+  // AUTO SCROLL
   // =========================
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
   // =========================
-  // CHAT SEND FUNCTION (STABLE)
+  // API CALL (STABLE)
   // =========================
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
@@ -116,7 +115,7 @@ export default function App() {
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
-      title: "New Chat",
+      title: "Neuer Chat",
       messages: []
     };
 
@@ -130,7 +129,7 @@ export default function App() {
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <button onClick={createNewChat} style={styles.newChat}>
-          + New Chat
+          + Neuer Chat
         </button>
 
         {chats.map(chat => (
@@ -169,7 +168,7 @@ export default function App() {
             </div>
           ))}
 
-          {/* LOADING INDICATOR */}
+          {/* LOADING STATE */}
           {loading && (
             <div style={{ padding: 10, opacity: 0.6 }}>
               Bot is typing...
@@ -217,7 +216,7 @@ const styles = {
   },
   sidebar: {
     width: 260,
-    borderRight: "1px solid #e5e7eb",
+    borderRight: "1px solid "#e5e7eb",
     padding: 10,
     background: "#f7f7f8"
   },
