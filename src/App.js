@@ -8,14 +8,14 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const chatId = useRef(Date.now());
+  const chatEndRef = useRef(null);
 
   // =========================
-  // RESIZE IFRAME VIA postMessage
+  // AUTO SCROLL
   // =========================
   useEffect(() => {
-    const height = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: "chat-resize", height }, "*");
-  }, [messages, loading]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // =========================
   // API CALL
@@ -59,7 +59,7 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* CHAT AREA — grows with content */}
+      {/* CHAT AREA */}
       <div style={styles.chatArea}>
         {messages.map((m, i) => (
           <div
@@ -83,9 +83,11 @@ export default function App() {
             Bot is typing...
           </div>
         )}
+
+        <div ref={chatEndRef} />
       </div>
 
-      {/* INPUT — fixed at bottom */}
+      {/* INPUT */}
       <div style={styles.inputWrapper}>
         <div style={styles.inputBar}>
           <input
@@ -111,14 +113,14 @@ const styles = {
   app: {
     display: "flex",
     flexDirection: "column",
+    height: "100vh",
     fontFamily: "system-ui",
-    background: "#ffffff",
-    minHeight: "100vh",
-    paddingBottom: 90
+    background: "#ffffff"
   },
 
   chatArea: {
     flex: 1,
+    overflowY: "auto",
     padding: 10
   },
 
@@ -131,13 +133,9 @@ const styles = {
   },
 
   inputWrapper: {
-    position: "fixed",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: "12px 20px",
-    background: "#fff",
-    borderTop: "1px solid #e5e7eb"
+    padding: 20,
+    borderTop: "1px solid #e5e7eb",
+    background: "#fff"
   },
 
   inputBar: {
