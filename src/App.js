@@ -11,20 +11,30 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const appRef = useRef(null);
   const activeChat = chats.find(c => c.id === activeChatId);
 
   // Send height to Wix whenever content changes
   useEffect(() => {
-    const root = document.getElementById("root");
+    if (!appRef.current) return;
     const sendHeight = () => {
-      const height = root.scrollHeight;
+      const height = appRef.current.scrollHeight;
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
     const observer = new ResizeObserver(sendHeight);
-    observer.observe(root);
+    observer.observe(appRef.current);
     sendHeight();
     return () => observer.disconnect();
   }, []);
+
+  // Also send height whenever messages change
+  useEffect(() => {
+    if (!appRef.current) return;
+    setTimeout(() => {
+      const height = appRef.current.scrollHeight;
+      window.parent.postMessage({ type: "chat-resize", height }, "*");
+    }, 100);
+  }, [chats, loading]);
 
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
@@ -88,7 +98,7 @@ export default function App() {
   };
 
   return (
-    <div style={styles.app}>
+    <div ref={appRef} style={styles.app}>
 
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
