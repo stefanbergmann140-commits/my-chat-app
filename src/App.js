@@ -162,8 +162,7 @@ const styles = {
   app: {
     display: "flex",
     fontFamily: "system-ui",
-    background: "#ffffff",
-    minHeight: "100vh"
+    background: "#ffffff"
   },
 
   sidebar: {
@@ -193,11 +192,11 @@ const styles = {
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column"
+    flexDirection: "column",
+    overflow: "visible"
   },
 
   chatArea: {
-    flex: 1,
     padding: 10
   },
 
