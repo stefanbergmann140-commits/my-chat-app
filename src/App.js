@@ -19,9 +19,6 @@ export default function App() {
     if (!appRef.current) return;
     const sendHeight = () => {
       const height = appRef.current.scrollHeight;
-      if (window.Wix) {
-        window.Wix.setHeight(height);
-      }
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
     const observer = new ResizeObserver(sendHeight);
@@ -35,9 +32,6 @@ export default function App() {
     if (!appRef.current) return;
     setTimeout(() => {
       const height = appRef.current.scrollHeight;
-      if (window.Wix) {
-        window.Wix.setHeight(height);
-      }
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     }, 100);
   }, [chats, loading]);
