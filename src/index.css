@@ -1,11 +1,10 @@
 html, body, #root {
   margin: 0;
   padding: 0;
-  height: auto !important;
-  overflow: hidden !important;
+  height: auto;
 }
 
-/* Kill all scrollbars */
+/* Hide scrollbars visually but allow content to flow */
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
