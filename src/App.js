@@ -14,17 +14,20 @@ export default function App() {
   const activeChat = chats.find(c => c.id === activeChatId);
 
   // =========================
-  // SEND HEIGHT TO WIX PARENT
+  // SEND HEIGHT TO WIX PARENT (continuous)
   // =========================
   useEffect(() => {
     const sendHeight = () => {
-      const height = document.documentElement.scrollHeight;
+      const height = document.body.scrollHeight;
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
+
+    const observer = new ResizeObserver(sendHeight);
+    observer.observe(document.body);
     sendHeight();
-    const t = setTimeout(sendHeight, 100);
-    return () => clearTimeout(t);
-  }, [chats, loading]);
+
+    return () => observer.disconnect();
+  }, []);
 
   // =========================
   // API CALL
