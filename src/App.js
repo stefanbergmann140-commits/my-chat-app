@@ -8,14 +8,20 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const chatId = useRef(Date.now());
-  const chatEndRef = useRef(null);
 
   // =========================
-  // AUTO SCROLL
+  // SEND HEIGHT TO WIX PARENT
   // =========================
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const sendHeight = () => {
+      const height = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: "chat-resize", height }, "*");
+    };
+    sendHeight();
+    // small delay to let DOM paint first
+    const t = setTimeout(sendHeight, 100);
+    return () => clearTimeout(t);
+  }, [messages, loading]);
 
   // =========================
   // API CALL
@@ -33,7 +39,6 @@ export default function App() {
 
       const data = await res.json();
       const aiText = data.text || data.answer || "Keine Antwort";
-
       setMessages(prev => [...prev, { role: "ai", text: aiText }]);
 
     } catch (err) {
@@ -48,7 +53,6 @@ export default function App() {
   // =========================
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
-
     const userText = input;
     setMessages(prev => [...prev, { role: "user", text: userText }]);
     setInput("");
@@ -59,7 +63,7 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* CHAT AREA */}
+      {/* CHAT MESSAGES — grows naturally, no scroll */}
       <div style={styles.chatArea}>
         {messages.map((m, i) => (
           <div
@@ -83,11 +87,9 @@ export default function App() {
             Bot is typing...
           </div>
         )}
-
-        <div ref={chatEndRef} />
       </div>
 
-      {/* INPUT */}
+      {/* INPUT — always at the bottom */}
       <div style={styles.inputWrapper}>
         <div style={styles.inputBar}>
           <input
@@ -95,9 +97,7 @@ export default function App() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             style={styles.input}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") sendMessage();
-            }}
+            onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
           />
           <button onClick={sendMessage} style={styles.button}>
             Send
@@ -113,14 +113,12 @@ const styles = {
   app: {
     display: "flex",
     flexDirection: "column",
-    height: "100vh",
     fontFamily: "system-ui",
-    background: "#ffffff"
+    background: "#ffffff",
+    paddingBottom: 20
   },
 
   chatArea: {
-    flex: 1,
-    overflowY: "auto",
     padding: 10
   },
 
@@ -133,9 +131,9 @@ const styles = {
   },
 
   inputWrapper: {
-    padding: 20,
-    borderTop: "1px solid #e5e7eb",
-    background: "#fff"
+    padding: "12px 20px",
+    background: "#fff",
+    borderTop: "1px solid #e5e7eb"
   },
 
   inputBar: {
