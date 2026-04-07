@@ -11,12 +11,19 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const chatEndRef = useRef(null);
   const activeChat = chats.find(c => c.id === activeChatId);
 
+  // Send height to Wix whenever content changes
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chats]);
+    const sendHeight = () => {
+      const height = document.body.scrollHeight;
+      window.parent.postMessage({ type: "chat-resize", height }, "*");
+    };
+    const observer = new ResizeObserver(sendHeight);
+    observer.observe(document.body);
+    sendHeight();
+    return () => observer.disconnect();
+  }, []);
 
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
@@ -28,7 +35,6 @@ export default function App() {
           body: JSON.stringify({ question: text, chatId: currentChatId })
         }
       );
-
       const data = await res.json();
       const aiText = data.text || data.answer || "Keine Antwort";
 
@@ -105,6 +111,7 @@ export default function App() {
       {/* MAIN */}
       <div style={styles.main}>
 
+        {/* CHAT — grows with content, no scroll */}
         <div style={styles.chatArea}>
           {activeChat?.messages.map((m, i) => (
             <div
@@ -128,10 +135,9 @@ export default function App() {
               Bot is typing...
             </div>
           )}
-
-          <div ref={chatEndRef} />
         </div>
 
+        {/* INPUT */}
         <div style={styles.inputWrapper}>
           <div style={styles.inputBar}>
             <input
@@ -155,9 +161,9 @@ export default function App() {
 const styles = {
   app: {
     display: "flex",
-    height: "100vh",
     fontFamily: "system-ui",
-    background: "#ffffff"
+    background: "#ffffff",
+    minHeight: "100vh"
   },
 
   sidebar: {
@@ -165,8 +171,7 @@ const styles = {
     borderRight: "1px solid #e5e7eb",
     padding: 10,
     background: "#f7f7f8",
-    flexShrink: 0,
-    overflowY: "auto"
+    flexShrink: 0
   },
 
   newChat: {
@@ -188,13 +193,11 @@ const styles = {
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column",
-    overflow: "hidden"
+    flexDirection: "column"
   },
 
   chatArea: {
     flex: 1,
-    overflowY: "auto",
     padding: 10
   },
 
