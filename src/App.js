@@ -11,27 +11,13 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const chatEndRef = useRef(null);
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  // =========================
-  // SEND HEIGHT TO WIX PARENT (continuous)
-  // =========================
   useEffect(() => {
-    const sendHeight = () => {
-      const height = document.body.scrollHeight;
-      window.parent.postMessage({ type: "chat-resize", height }, "*");
-    };
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
 
-    const observer = new ResizeObserver(sendHeight);
-    observer.observe(document.body);
-    sendHeight();
-
-    return () => observer.disconnect();
-  }, []);
-
-  // =========================
-  // API CALL
-  // =========================
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -58,7 +44,6 @@ export default function App() {
           };
         })
       );
-
     } catch (err) {
       setChats(prev =>
         prev.map(chat =>
@@ -68,16 +53,11 @@ export default function App() {
         )
       );
     }
-
     setLoading(false);
   }, []);
 
-  // =========================
-  // SEND MESSAGE
-  // =========================
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
-
     const userText = input;
     const currentChatId = activeChatId;
     const isFirstMessage = activeChat?.messages.length === 0;
@@ -89,15 +69,11 @@ export default function App() {
           : chat
       )
     );
-
     setInput("");
     setLoading(true);
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
-  // =========================
-  // NEW CHAT
-  // =========================
   const createNewChat = () => {
     const newChat = { id: Date.now(), title: "Neuer Chat", messages: [] };
     setChats(prev => [newChat, ...prev]);
@@ -129,7 +105,6 @@ export default function App() {
       {/* MAIN */}
       <div style={styles.main}>
 
-        {/* CHAT AREA — grows naturally, no scroll */}
         <div style={styles.chatArea}>
           {activeChat?.messages.map((m, i) => (
             <div
@@ -153,9 +128,10 @@ export default function App() {
               Bot is typing...
             </div>
           )}
+
+          <div ref={chatEndRef} />
         </div>
 
-        {/* INPUT */}
         <div style={styles.inputWrapper}>
           <div style={styles.inputBar}>
             <input
@@ -179,9 +155,9 @@ export default function App() {
 const styles = {
   app: {
     display: "flex",
+    height: "100vh",
     fontFamily: "system-ui",
-    background: "#ffffff",
-    paddingBottom: 20
+    background: "#ffffff"
   },
 
   sidebar: {
@@ -189,7 +165,8 @@ const styles = {
     borderRight: "1px solid #e5e7eb",
     padding: 10,
     background: "#f7f7f8",
-    flexShrink: 0
+    flexShrink: 0,
+    overflowY: "auto"
   },
 
   newChat: {
@@ -211,10 +188,13 @@ const styles = {
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column"
+    flexDirection: "column",
+    overflow: "hidden"
   },
 
   chatArea: {
+    flex: 1,
+    overflowY: "auto",
     padding: 10
   },
 
@@ -228,8 +208,8 @@ const styles = {
 
   inputWrapper: {
     padding: "12px 20px",
-    background: "#fff",
-    borderTop: "1px solid #e5e7eb"
+    borderTop: "1px solid #e5e7eb",
+    background: "#fff"
   },
 
   inputBar: {
