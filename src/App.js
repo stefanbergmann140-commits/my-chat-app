@@ -15,12 +15,13 @@ export default function App() {
 
   // Send height to Wix whenever content changes
   useEffect(() => {
+    const root = document.getElementById("root");
     const sendHeight = () => {
-      const height = document.body.scrollHeight;
+      const height = root.scrollHeight;
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
     const observer = new ResizeObserver(sendHeight);
-    observer.observe(document.body);
+    observer.observe(root);
     sendHeight();
     return () => observer.disconnect();
   }, []);
