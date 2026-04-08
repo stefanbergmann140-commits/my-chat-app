@@ -34,13 +34,13 @@ class ChatWidget extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <div style="display:flex;">
+      <div style="display:flex;background:#fff;width:100%;">
         <div id="cw-sidebar" style="width:260px;border-right:1px solid #e5e7eb;padding:10px;background:#f7f7f8;flex-shrink:0;">
           <button id="cw-new" style="width:100%;padding:10px;margin-bottom:10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;">+ Neuer Chat</button>
           <div id="cw-chat-list"></div>
         </div>
-        <div style="flex:1;display:flex;flex-direction:column;">
-          <div id="cw-messages" style="padding:10px;min-height:300px;"></div>
+        <div style="flex:1;display:flex;flex-direction:column;background:#fff;">
+          <div id="cw-messages" style="padding:10px;min-height:300px;background:#fff;"></div>
           <div style="padding:12px 20px;border-top:1px solid #e5e7eb;background:#fff;">
             <div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;max-width:800px;margin:0 auto;">
               <input id="cw-input" placeholder="Type a message..." style="flex:1;padding:10px;border-radius:6px;border:1px solid #d1d5db;font-size:14px;" />
