@@ -3,7 +3,7 @@ html, body, #root {
   padding: 0;
   height: auto;
   overflow: hidden;
-  background: transparent;
+  background: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;

@@ -173,7 +173,7 @@ const styles = {
   app: {
     display: "flex",
     fontFamily: "system-ui",
-    background: "transparent"
+    background: "#fff"
   },
 
   sidebar: {
