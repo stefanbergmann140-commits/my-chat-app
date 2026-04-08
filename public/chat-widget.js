@@ -10,13 +10,14 @@ class ChatWidget extends HTMLElement {
   connectedCallback() {
     this.style.display = "block";
     this.style.fontFamily = "system-ui, sans-serif";
+    this.style.minHeight = "500px";
     this.render();
     this._startHeightReporting();
   }
 
   _startHeightReporting() {
     const sendHeight = () => {
-      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
+      const height = Math.max(500, document.body ? document.body.scrollHeight : this.scrollHeight);
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
     this._resizeObserver = new ResizeObserver(sendHeight);
@@ -98,7 +99,7 @@ class ChatWidget extends HTMLElement {
     container.innerHTML = html;
     // Report updated height to Wix after DOM update
     setTimeout(() => {
-      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
+      const height = Math.max(500, document.body ? document.body.scrollHeight : this.scrollHeight);
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     }, 50);
   }
