@@ -11,6 +11,21 @@ class ChatWidget extends HTMLElement {
     this.style.display = "block";
     this.style.fontFamily = "system-ui, sans-serif";
     this.render();
+    this._startHeightReporting();
+  }
+
+  _startHeightReporting() {
+    const sendHeight = () => {
+      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
+      window.parent.postMessage({ type: "chat-resize", height }, "*");
+    };
+    this._resizeObserver = new ResizeObserver(sendHeight);
+    this._resizeObserver.observe(this);
+    sendHeight();
+  }
+
+  disconnectedCallback() {
+    if (this._resizeObserver) this._resizeObserver.disconnect();
   }
 
   get activeChat() {
@@ -20,7 +35,7 @@ class ChatWidget extends HTMLElement {
   render() {
     this.innerHTML = `
       <div style="display:flex;">
-        <div id="cw-sidebar" style="width:260px;border-right:1px solid #e5e7eb;padding:10px;background:#f7f7f8;flex-shrink:0;min-height:400px;">
+        <div id="cw-sidebar" style="width:260px;border-right:1px solid #e5e7eb;padding:10px;background:#f7f7f8;flex-shrink:0;">
           <button id="cw-new" style="width:100%;padding:10px;margin-bottom:10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;">+ Neuer Chat</button>
           <div id="cw-chat-list"></div>
         </div>
@@ -81,6 +96,11 @@ class ChatWidget extends HTMLElement {
     }
 
     container.innerHTML = html;
+    // Report updated height to Wix after DOM update
+    setTimeout(() => {
+      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
+      window.parent.postMessage({ type: "chat-resize", height }, "*");
+    }, 50);
   }
 
   createNewChat() {
