@@ -10,14 +10,13 @@ class ChatWidget extends HTMLElement {
   connectedCallback() {
     this.style.display = "block";
     this.style.fontFamily = "system-ui, sans-serif";
-    this.style.minHeight = "500px";
     this.render();
     this._startHeightReporting();
   }
 
   _startHeightReporting() {
     const sendHeight = () => {
-      const height = Math.max(500, document.body ? document.body.scrollHeight : this.scrollHeight);
+      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     };
     this._resizeObserver = new ResizeObserver(sendHeight);
@@ -41,7 +40,7 @@ class ChatWidget extends HTMLElement {
           <div id="cw-chat-list"></div>
         </div>
         <div style="flex:1;display:flex;flex-direction:column;">
-          <div id="cw-messages" style="padding:10px;"></div>
+          <div id="cw-messages" style="padding:10px;min-height:300px;"></div>
           <div style="padding:12px 20px;border-top:1px solid #e5e7eb;background:#fff;">
             <div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;max-width:800px;margin:0 auto;">
               <input id="cw-input" placeholder="Type a message..." style="flex:1;padding:10px;border-radius:6px;border:1px solid #d1d5db;font-size:14px;" />
@@ -99,7 +98,7 @@ class ChatWidget extends HTMLElement {
     container.innerHTML = html;
     // Report updated height to Wix after DOM update
     setTimeout(() => {
-      const height = Math.max(500, document.body ? document.body.scrollHeight : this.scrollHeight);
+      const height = document.body ? document.body.scrollHeight : this.scrollHeight;
       window.parent.postMessage({ type: "chat-resize", height }, "*");
     }, 50);
   }

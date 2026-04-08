@@ -208,7 +208,8 @@ const styles = {
   },
 
   chatArea: {
-    padding: 10
+    padding: 10,
+    minHeight: 300
   },
 
   bubble: {
