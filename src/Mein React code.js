@@ -24,32 +24,6 @@ export default function App() {
   }, [chats]);
 
   // =========================
-  // HEIGHT REPORTING
-  // =========================
-  useEffect(() => {
-    const sendHeight = () => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    };
-    sendHeight();
-    window.addEventListener("resize", sendHeight);
-    return () => window.removeEventListener("resize", sendHeight);
-  }, []);
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  // =========================
   // API CALL
   // =========================
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
