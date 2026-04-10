@@ -19,10 +19,7 @@ export default function App() {
   // =========================
   // AUTO SCROLL
   // =========================
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chats]);
-
+ 
   // =========================
   // HEIGHT REPORTING
   // =========================
