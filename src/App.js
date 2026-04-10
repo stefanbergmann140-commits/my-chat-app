@@ -8,55 +8,26 @@ import { Routes, Route, Link } from "react-router-dom";
 ========================= */
 function Header() {
   return (
-    <header style={headerStyles.header}>
+    <header style={styles.header}>
       <h2 style={{ margin: 0 }}>💬 Chat App</h2>
     </header>
   );
 }
-
-const headerStyles = {
-  header: {
-    height: 60,
-    display: "flex",
-    alignItems: "center",
-    padding: "0 16px",
-    borderBottom: "1px solid #e5e7eb",
-    background: "#fff",
-    fontWeight: "bold"
-  }
-};
 
 /* =========================
    FOOTER
 ========================= */
 function Footer() {
   return (
-    <footer style={footerStyles.footer}>
+    <footer style={styles.footer}>
       <div style={{ display: "flex", gap: 20 }}>
-        <Link style={footerStyles.link} to="/support">Support</Link>
-        <Link style={footerStyles.link} to="/privacy">Privacy Policy</Link>
-        <Link style={footerStyles.link} to="/legal">Legal Notice</Link>
+        <Link style={styles.link} to="/support">Support</Link>
+        <Link style={styles.link} to="/privacy">Privacy Policy</Link>
+        <Link style={styles.link} to="/legal">Legal Notice</Link>
       </div>
     </footer>
   );
 }
-
-const footerStyles = {
-  footer: {
-    height: 50,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderTop: "1px solid #e5e7eb",
-    background: "#fff",
-    fontSize: 12,
-    color: "#6b7280"
-  },
-  link: {
-    color: "#6b7280",
-    textDecoration: "none"
-  }
-};
 
 /* =========================
    SEITEN
@@ -65,7 +36,7 @@ function Support() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Support</h1>
-      <p>Kontaktiere uns unter: support@example.com</p>
+      <p>Kontakt: support@example.com</p>
     </div>
   );
 }
@@ -83,15 +54,15 @@ function LegalNotice() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Legal Notice</h1>
-      <p>Hier steht dein Impressum / rechtliche Hinweise.</p>
+      <p>Impressum / rechtliche Hinweise.</p>
     </div>
   );
 }
 
 /* =========================
-   MAIN CHAT LAYOUT
+   CHAT LAYOUT
 ========================= */
-function MainLayout() {
+function ChatApp() {
 
   const [chats, setChats] = useState([
     { id: 1, title: "Neuer Chat", messages: [] }
@@ -104,24 +75,10 @@ function MainLayout() {
   const chatEndRef = useRef(null);
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  // AUTO SCROLL
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  // HEIGHT REPORTING
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  // API CALL
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -147,7 +104,7 @@ function MainLayout() {
             ...chat,
             messages: [...chat.messages, { role: "ai", text: aiText }],
             title: isFirstMessage
-              ? (text.length > 30 ? text.slice(0, 30) + "..." : text)
+              ? text.slice(0, 30)
               : chat.title
           };
         })
@@ -157,7 +114,7 @@ function MainLayout() {
       setChats(prev =>
         prev.map(chat =>
           chat.id === currentChatId
-            ? { ...chat, messages: [...chat.messages, { role: "ai", text: "Error generating response" }] }
+            ? { ...chat, messages: [...chat.messages, { role: "ai", text: "Error" }] }
             : chat
         )
       );
@@ -166,18 +123,17 @@ function MainLayout() {
     setLoading(false);
   }, []);
 
-  // SEND MESSAGE
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userText = input;
-    const currentChatId = activeChatId;
-    const isFirstMessage = activeChat?.messages.length === 0;
+    const text = input;
+    const chatId = activeChatId;
+    const isFirst = activeChat?.messages.length === 0;
 
     setChats(prev =>
       prev.map(chat =>
-        chat.id === currentChatId
-          ? { ...chat, messages: [...chat.messages, { role: "user", text: userText }] }
+        chat.id === chatId
+          ? { ...chat, messages: [...chat.messages, { role: "user", text }] }
           : chat
       )
     );
@@ -185,11 +141,10 @@ function MainLayout() {
     setInput("");
     setLoading(true);
 
-    await handleUserMessage(userText, currentChatId, isFirstMessage);
+    await handleUserMessage(text, chatId, isFirst);
   };
 
-  // NEW CHAT
-  const createNewChat = () => {
+  const createChat = () => {
     const newChat = {
       id: Date.now(),
       title: "Neuer Chat",
@@ -209,7 +164,7 @@ function MainLayout() {
 
         {/* SIDEBAR */}
         <div style={styles.sidebar}>
-          <button onClick={createNewChat} style={styles.newChat}>
+          <button onClick={createChat} style={styles.buttonNew}>
             + Neuer Chat
           </button>
 
@@ -231,11 +186,14 @@ function MainLayout() {
         <div style={styles.main}>
           <div style={styles.chatArea}>
             {activeChat?.messages.map((m, i) => (
-              <div key={i} style={{
-                display: "flex",
-                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-                padding: 10
-              }}>
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+                  padding: 10
+                }}
+              >
                 <div style={styles.bubble}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {m.text}
@@ -244,25 +202,22 @@ function MainLayout() {
               </div>
             ))}
 
-            {loading && <div style={{ padding: 10 }}>Bot is typing...</div>}
+            {loading && <div style={{ padding: 10 }}>Typing...</div>}
 
             <div ref={chatEndRef} />
           </div>
 
-          <div style={styles.inputWrapper}>
-            <div style={styles.inputBar}>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Type a message..."
-                style={styles.input}
-              />
-
-              <button onClick={sendMessage} style={styles.button}>
-                Send
-              </button>
-            </div>
+          <div style={styles.inputBar}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder="Type message..."
+              style={styles.input}
+            />
+            <button onClick={sendMessage} style={styles.send}>
+              Send
+            </button>
           </div>
         </div>
       </div>
@@ -273,12 +228,12 @@ function MainLayout() {
 }
 
 /* =========================
-   ROUTES
+   ROUTING
 ========================= */
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<MainLayout />} />
+      <Route path="/" element={<ChatApp />} />
       <Route path="/support" element={<Support />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/legal" element={<LegalNotice />} />
@@ -298,24 +253,13 @@ const styles = {
   },
   body: {
     display: "flex",
-    flex: 1,
-    overflow: "hidden"
+    flex: 1
   },
   sidebar: {
     width: 260,
     borderRight: "1px solid #e5e7eb",
     padding: 10,
     background: "#f7f7f8"
-  },
-  newChat: {
-    width: "100%",
-    padding: 10,
-    marginBottom: 10
-  },
-  chatItem: {
-    padding: 10,
-    borderRadius: 6,
-    cursor: "pointer"
   },
   main: {
     flex: 1,
@@ -331,23 +275,47 @@ const styles = {
     maxWidth: 700,
     padding: 12,
     border: "1px solid #e5e7eb",
-    borderRadius: 8
-  },
-  inputWrapper: {
-    padding: 20
+    borderRadius: 8,
+    background: "#fff"
   },
   inputBar: {
     display: "flex",
     gap: 10,
-    maxWidth: 800,
-    margin: "0 auto"
+    padding: 10
   },
   input: {
     flex: 1,
     padding: 10,
-    border: "1px solid #d1d5db"
+    border: "1px solid #ccc"
   },
-  button: {
+  send: {
     padding: "8px 12px"
+  },
+  buttonNew: {
+    width: "100%",
+    marginBottom: 10
+  },
+  chatItem: {
+    padding: 10,
+    borderRadius: 6,
+    cursor: "pointer"
+  },
+  header: {
+    height: 60,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 16px",
+    borderBottom: "1px solid #e5e7eb"
+  },
+  footer: {
+    height: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderTop: "1px solid #e5e7eb"
+  },
+  link: {
+    textDecoration: "none",
+    color: "#555"
   }
 };
