@@ -2,6 +2,56 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+/* =========================
+   HEADER
+========================= */
+function Header() {
+  return (
+    <header style={headerStyles.header}>
+      <h2 style={{ margin: 0 }}>💬 Chat App</h2>
+    </header>
+  );
+}
+
+const headerStyles = {
+  header: {
+    height: 60,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 16px",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#fff",
+    fontWeight: "bold"
+  }
+};
+
+/* =========================
+   FOOTER
+========================= */
+function Footer() {
+  return (
+    <footer style={footerStyles.footer}>
+      <span>© {new Date().getFullYear()} Meine Chat App</span>
+    </footer>
+  );
+}
+
+const footerStyles = {
+  footer: {
+    height: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderTop: "1px solid #e5e7eb",
+    background: "#fff",
+    fontSize: 12,
+    color: "#6b7280"
+  }
+};
+
+/* =========================
+   APP
+========================= */
 export default function App() {
 
   const [chats, setChats] = useState([
@@ -16,18 +66,12 @@ export default function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  // =========================
   // AUTO SCROLL
-  // =========================
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  // =========================
   // HEIGHT REPORTING
-  // =========================
-  
-
   useEffect(() => {
     const observer = new MutationObserver(() => {
       window.parent.postMessage(
@@ -39,9 +83,7 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
-  // =========================
   // API CALL
-  // =========================
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -95,9 +137,7 @@ export default function App() {
     setLoading(false);
   }, []);
 
-  // =========================
   // SEND MESSAGE
-  // =========================
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -125,9 +165,7 @@ export default function App() {
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
-  // =========================
   // NEW CHAT
-  // =========================
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
@@ -142,92 +180,105 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* SIDEBAR */}
-      <div style={styles.sidebar}>
-        <button onClick={createNewChat} style={styles.newChat}>
-          + Neuer Chat
-        </button>
+      <Header />
 
-        {chats.map(chat => (
-          <div
-            key={chat.id}
-            onClick={() => setActiveChatId(chat.id)}
-            style={{
-              ...styles.chatItem,
-              background: chat.id === activeChatId ? "#e5e7eb" : "transparent"
-            }}
-          >
-            {chat.title}
-          </div>
-        ))}
-      </div>
+      <div style={styles.body}>
 
-      {/* MAIN */}
-      <div style={styles.main}>
+        {/* SIDEBAR */}
+        <div style={styles.sidebar}>
+          <button onClick={createNewChat} style={styles.newChat}>
+            + Neuer Chat
+          </button>
 
-        {/* CHAT AREA */}
-        <div style={styles.chatArea}>
-          {activeChat?.messages.map((m, i) => (
+          {chats.map(chat => (
             <div
-              key={i}
+              key={chat.id}
+              onClick={() => setActiveChatId(chat.id)}
               style={{
-                display: "flex",
-                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-                padding: 10
+                ...styles.chatItem,
+                background: chat.id === activeChatId ? "#e5e7eb" : "transparent"
               }}
             >
-              <div style={styles.bubble}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {m.text}
-                </ReactMarkdown>
-              </div>
+              {chat.title}
             </div>
           ))}
-
-          {loading && (
-            <div style={{ padding: 10, opacity: 0.6 }}>
-              Bot is typing...
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
         </div>
 
-        {/* INPUT */}
-        <div style={styles.inputWrapper}>
-          <div style={styles.inputBar}>
+        {/* MAIN */}
+        <div style={styles.main}>
 
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a message..."
-              style={styles.input}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") sendMessage();
-              }}
-            />
+          <div style={styles.chatArea}>
+            {activeChat?.messages.map((m, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+                  padding: 10
+                }}
+              >
+                <div style={styles.bubble}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {m.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ))}
 
-            <button onClick={sendMessage} style={styles.button}>
-              Send
-            </button>
+            {loading && (
+              <div style={{ padding: 10, opacity: 0.6 }}>
+                Bot is typing...
+              </div>
+            )}
 
+            <div ref={chatEndRef} />
           </div>
-        </div>
 
+          <div style={styles.inputWrapper}>
+            <div style={styles.inputBar}>
+
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type a message..."
+                style={styles.input}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage();
+                }}
+              />
+
+              <button onClick={sendMessage} style={styles.button}>
+                Send
+              </button>
+
+            </div>
+          </div>
+
+        </div>
       </div>
+
+      <Footer />
+
     </div>
   );
 }
 
 /* =========================
-   STYLES (FIXED)
+   STYLES
 ========================= */
 const styles = {
   app: {
     display: "flex",
+    flexDirection: "column",
     height: "100vh",
     fontFamily: "system-ui",
     background: "#ffffff"
+  },
+
+  body: {
+    display: "flex",
+    flex: 1,
+    overflow: "hidden"
   },
 
   sidebar: {
@@ -256,8 +307,7 @@ const styles = {
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column",
-    height: "100vh"
+    flexDirection: "column"
   },
 
   chatArea: {
