@@ -273,7 +273,9 @@ const styles = {
   chatArea: {
     flex: 1,
     overflowY: "auto",
-    padding: 10
+    padding: 10,
+    scrollbarWidth: "none",
+    msOverflowStyle: "none"
   },
 
   bubble: {
