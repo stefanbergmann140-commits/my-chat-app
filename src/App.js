@@ -36,7 +36,7 @@ function Support() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Support</h1>
-      <p>Kontakt: support@example.com</p>
+      <p>support@example.com</p>
     </div>
   );
 }
@@ -54,13 +54,13 @@ function LegalNotice() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Legal Notice</h1>
-      <p>Impressum / rechtliche Hinweise.</p>
+      <p>Hier steht dein Impressum.</p>
     </div>
   );
 }
 
 /* =========================
-   CHAT LAYOUT
+   CHAT APP
 ========================= */
 function ChatApp() {
 
@@ -79,7 +79,7 @@ function ChatApp() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
+  const handleUserMessage = useCallback(async (text, chatId, isFirst) => {
     try {
       const res = await fetch(
         "https://flowise-1-4fly.onrender.com/api/v1/prediction/e20bf3ea-8f22-4c1b-95d0-209df14bd2ed",
@@ -88,32 +88,30 @@ function ChatApp() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             question: text,
-            chatId: currentChatId
+            chatId
           })
         }
       );
 
       const data = await res.json();
-      const aiText = data.text || data.answer || "Keine Antwort";
+      const aiText = data.text || "Keine Antwort";
 
       setChats(prev =>
-        prev.map(chat => {
-          if (chat.id !== currentChatId) return chat;
-
-          return {
-            ...chat,
-            messages: [...chat.messages, { role: "ai", text: aiText }],
-            title: isFirstMessage
-              ? text.slice(0, 30)
-              : chat.title
-          };
-        })
+        prev.map(chat =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: [...chat.messages, { role: "ai", text: aiText }],
+                title: isFirst ? text.slice(0, 30) : chat.title
+              }
+            : chat
+        )
       );
 
     } catch {
       setChats(prev =>
         prev.map(chat =>
-          chat.id === currentChatId
+          chat.id === chatId
             ? { ...chat, messages: [...chat.messages, { role: "ai", text: "Error" }] }
             : chat
         )
@@ -164,7 +162,7 @@ function ChatApp() {
 
         {/* SIDEBAR */}
         <div style={styles.sidebar}>
-          <button onClick={createChat} style={styles.buttonNew}>
+          <button onClick={createChat} style={styles.newChat}>
             + Neuer Chat
           </button>
 
@@ -186,14 +184,11 @@ function ChatApp() {
         <div style={styles.main}>
           <div style={styles.chatArea}>
             {activeChat?.messages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-                  padding: 10
-                }}
-              >
+              <div key={i} style={{
+                display: "flex",
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+                padding: 10
+              }}>
                 <div style={styles.bubble}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {m.text}
@@ -203,7 +198,6 @@ function ChatApp() {
             ))}
 
             {loading && <div style={{ padding: 10 }}>Typing...</div>}
-
             <div ref={chatEndRef} />
           </div>
 
@@ -228,7 +222,7 @@ function ChatApp() {
 }
 
 /* =========================
-   ROUTING
+   ROUTES
 ========================= */
 export default function App() {
   return (
@@ -245,77 +239,18 @@ export default function App() {
    STYLES
 ========================= */
 const styles = {
-  app: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    fontFamily: "system-ui"
-  },
-  body: {
-    display: "flex",
-    flex: 1
-  },
-  sidebar: {
-    width: 260,
-    borderRight: "1px solid #e5e7eb",
-    padding: 10,
-    background: "#f7f7f8"
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column"
-  },
-  chatArea: {
-    flex: 1,
-    overflowY: "auto",
-    padding: 10
-  },
-  bubble: {
-    maxWidth: 700,
-    padding: 12,
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    background: "#fff"
-  },
-  inputBar: {
-    display: "flex",
-    gap: 10,
-    padding: 10
-  },
-  input: {
-    flex: 1,
-    padding: 10,
-    border: "1px solid #ccc"
-  },
-  send: {
-    padding: "8px 12px"
-  },
-  buttonNew: {
-    width: "100%",
-    marginBottom: 10
-  },
-  chatItem: {
-    padding: 10,
-    borderRadius: 6,
-    cursor: "pointer"
-  },
-  header: {
-    height: 60,
-    display: "flex",
-    alignItems: "center",
-    padding: "0 16px",
-    borderBottom: "1px solid #e5e7eb"
-  },
-  footer: {
-    height: 50,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderTop: "1px solid #e5e7eb"
-  },
-  link: {
-    textDecoration: "none",
-    color: "#555"
-  }
+  app: { display: "flex", flexDirection: "column", height: "100vh" },
+  body: { display: "flex", flex: 1 },
+  sidebar: { width: 260, borderRight: "1px solid #eee", padding: 10 },
+  main: { flex: 1, display: "flex", flexDirection: "column" },
+  chatArea: { flex: 1, overflowY: "auto", padding: 10 },
+  bubble: { maxWidth: 700, padding: 10, border: "1px solid #ddd" },
+  inputBar: { display: "flex", gap: 10, padding: 10 },
+  input: { flex: 1, padding: 10 },
+  send: { padding: "8px 12px" },
+  newChat: { width: "100%", marginBottom: 10 },
+  chatItem: { padding: 10, cursor: "pointer" },
+  header: { height: 60, display: "flex", alignItems: "center", padding: 10, borderBottom: "1px solid #eee" },
+  footer: { height: 50, display: "flex", justifyContent: "center", alignItems: "center", borderTop: "1px solid #eee" },
+  link: { textDecoration: "none", color: "#555" }
 };
