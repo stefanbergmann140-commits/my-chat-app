@@ -19,21 +19,14 @@ export default function App() {
   // =========================
   // AUTO SCROLL
   // =========================
- 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
+
   // =========================
   // HEIGHT REPORTING
   // =========================
-  useEffect(() => {
-    const sendHeight = () => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    };
-    sendHeight();
-    window.addEventListener("resize", sendHeight);
-    return () => window.removeEventListener("resize", sendHeight);
-  }, []);
+  
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
