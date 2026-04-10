@@ -7,67 +7,25 @@ export default function App() {
   const [chats, setChats] = useState([
     { id: 1, title: "Neuer Chat", messages: [] }
   ]);
+
   const [activeChatId, setActiveChatId] = useState(1);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const appRef = useRef(null);
+  const chatEndRef = useRef(null);
+
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  // Send height to Wix whenever content changes
-  useEffect(() => {
-    if (!appRef.current) return;
-    const sendHeight = () => {
-      const height = appRef.current.scrollHeight;
-      window.parent.postMessage({ type: "chat-resize", height }, "*");
-    };
-    const observer = new ResizeObserver(sendHeight);
-    observer.observe(appRef.current);
-    sendHeight();
-    return () => observer.disconnect();
-  }, []);
-
-  // Also send height whenever messages change
-  useEffect(() => {
-    if (!appRef.current) return;
-    setTimeout(() => {
-      const height = appRef.current.scrollHeight;
-      window.parent.postMessage({ type: "chat-resize", height }, "*");
-    }, 100);
-  }, [chats, loading]);
-
-<<<<<<< HEAD
-=======
   // =========================
-  // HEIGHT REPORTING
+  // AUTO SCROLL
   // =========================
   useEffect(() => {
-    const sendHeight = () => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    };
-    sendHeight();
-    window.addEventListener("resize", sendHeight);
-    return () => window.removeEventListener("resize", sendHeight);
-  }, []);
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      window.parent.postMessage(
-        { type: "chat-resize", height: document.body.scrollHeight },
-        "*"
-      );
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
 
   // =========================
   // API CALL
   // =========================
->>>>>>> 5561c39 (update chat ui)
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -75,38 +33,58 @@ export default function App() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text, chatId: currentChatId })
+          body: JSON.stringify({
+            question: text,
+            chatId: currentChatId
+          })
         }
       );
+
       const data = await res.json();
       const aiText = data.text || data.answer || "Keine Antwort";
 
       setChats(prev =>
         prev.map(chat => {
           if (chat.id !== currentChatId) return chat;
+
           return {
             ...chat,
-            messages: [...chat.messages, { role: "ai", text: aiText }],
+            messages: [
+              ...chat.messages,
+              { role: "ai", text: aiText }
+            ],
             title: isFirstMessage
               ? (text.length > 30 ? text.slice(0, 30) + "..." : text)
               : chat.title
           };
         })
       );
+
     } catch (err) {
       setChats(prev =>
         prev.map(chat =>
           chat.id === currentChatId
-            ? { ...chat, messages: [...chat.messages, { role: "ai", text: "Error generating response" }] }
+            ? {
+                ...chat,
+                messages: [
+                  ...chat.messages,
+                  { role: "ai", text: "Error generating response" }
+                ]
+              }
             : chat
         )
       );
     }
+
     setLoading(false);
   }, []);
 
+  // =========================
+  // SEND MESSAGE
+  // =========================
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+
     const userText = input;
     const currentChatId = activeChatId;
     const isFirstMessage = activeChat?.messages.length === 0;
@@ -114,29 +92,46 @@ export default function App() {
     setChats(prev =>
       prev.map(chat =>
         chat.id === currentChatId
-          ? { ...chat, messages: [...chat.messages, { role: "user", text: userText }] }
+          ? {
+              ...chat,
+              messages: [
+                ...chat.messages,
+                { role: "user", text: userText }
+              ]
+            }
           : chat
       )
     );
+
     setInput("");
     setLoading(true);
+
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
+  // =========================
+  // NEW CHAT
+  // =========================
   const createNewChat = () => {
-    const newChat = { id: Date.now(), title: "Neuer Chat", messages: [] };
+    const newChat = {
+      id: Date.now(),
+      title: "Neuer Chat",
+      messages: []
+    };
+
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
   };
 
   return (
-    <div ref={appRef} style={styles.app}>
+    <div style={styles.app}>
 
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <button onClick={createNewChat} style={styles.newChat}>
           + Neuer Chat
         </button>
+
         {chats.map(chat => (
           <div
             key={chat.id}
@@ -154,7 +149,7 @@ export default function App() {
       {/* MAIN */}
       <div style={styles.main}>
 
-        {/* CHAT — grows with content, no scroll */}
+        {/* CHAT AREA */}
         <div style={styles.chatArea}>
           {activeChat?.messages.map((m, i) => (
             <div
@@ -178,21 +173,28 @@ export default function App() {
               Bot is typing...
             </div>
           )}
+
+          <div ref={chatEndRef} />
         </div>
 
         {/* INPUT */}
         <div style={styles.inputWrapper}>
           <div style={styles.inputBar}>
+
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message..."
               style={styles.input}
-              onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+              }}
             />
+
             <button onClick={sendMessage} style={styles.button}>
               Send
             </button>
+
           </div>
         </div>
 
@@ -201,19 +203,22 @@ export default function App() {
   );
 }
 
+/* =========================
+   STYLES (FIXED)
+========================= */
 const styles = {
   app: {
     display: "flex",
+    height: "100vh",
     fontFamily: "system-ui",
-    background: "#fff"
+    background: "#ffffff"
   },
 
   sidebar: {
     width: 260,
     borderRight: "1px solid #e5e7eb",
     padding: 10,
-    background: "#f7f7f8",
-    flexShrink: 0
+    background: "#f7f7f8"
   },
 
   newChat: {
@@ -236,12 +241,13 @@ const styles = {
     flex: 1,
     display: "flex",
     flexDirection: "column",
-    overflow: "visible"
+    height: "100vh"
   },
 
   chatArea: {
-    padding: 10,
-    minHeight: 300
+    flex: 1,
+    overflowY: "auto",
+    padding: 10
   },
 
   bubble: {
@@ -253,9 +259,8 @@ const styles = {
   },
 
   inputWrapper: {
-    padding: "12px 20px",
-    borderTop: "1px solid #e5e7eb",
-    background: "#fff"
+    display: "flex",
+    padding: 20
   },
 
   inputBar: {
