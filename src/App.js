@@ -21,8 +21,9 @@ const headerStyles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderBottom: "1px solid #e5e7eb",
-    background: "#ffffff"
+    background: "#000",
+    color: "#fff",
+    borderBottom: "1px solid #111"
   },
   title: {
     margin: 0,
@@ -38,20 +39,44 @@ const headerStyles = {
 function Footer() {
   return (
     <footer style={footerStyles.footer}>
-      <span>© {new Date().getFullYear()} Meine Chat App</span>
+      <div style={footerStyles.content}>
+        <span>© {new Date().getFullYear()} Meine Chat App</span>
+
+        <div style={footerStyles.links}>
+          <a href="#" style={footerStyles.link}>Impressum</a>
+          <a href="#" style={footerStyles.link}>Datenschutz</a>
+        </div>
+      </div>
     </footer>
   );
 }
 
 const footerStyles = {
   footer: {
-    height: 50,
+    height: 60,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     background: "#000",
+    color: "#fff"
+  },
+  content: {
+    width: "100%",
+    maxWidth: 1000,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0 20px"
+  },
+  links: {
+    display: "flex",
+    gap: 15
+  },
+  link: {
     color: "#fff",
-    fontSize: 12
+    textDecoration: "none",
+    fontSize: 12,
+    opacity: 0.8
   }
 };
 
@@ -184,7 +209,7 @@ export default function App() {
 
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
-    setHasStarted(false); // 👈 Reset für Startscreen
+    setHasStarted(false);
   };
 
   return (
@@ -332,8 +357,7 @@ const styles = {
     flex: 1,
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
-    transition: "all 0.3s ease"
+    justifyContent: "center"
   },
 
   chatArea: {
