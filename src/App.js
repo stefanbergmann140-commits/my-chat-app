@@ -7,12 +7,57 @@ import remarkGfm from "remark-gfm";
 ========================= */
 function Header() {
   return (
-    <div style={styles.header}>
-      EDMAI
-    </div>
+    <header style={headerStyles.header}>
+      <h2 style={headerStyles.title}>
+        The worlds first EDM AI Agent
+      </h2>
+    </header>
   );
 }
 
+const headerStyles = {
+  header: {
+    height: 70,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#ffffff"
+  },
+  title: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: "600",
+    letterSpacing: "0.5px"
+  }
+};
+
+/* =========================
+   FOOTER
+========================= */
+function Footer() {
+  return (
+    <footer style={footerStyles.footer}>
+      <span>© {new Date().getFullYear()} Meine Chat App</span>
+    </footer>
+  );
+}
+
+const footerStyles = {
+  footer: {
+    height: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#000",
+    color: "#fff",
+    fontSize: 12
+  }
+};
+
+/* =========================
+   APP
+========================= */
 export default function App() {
 
   const [chats, setChats] = useState([
@@ -22,15 +67,18 @@ export default function App() {
   const [activeChatId, setActiveChatId] = useState(1);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState("chat");
+  const [hasStarted, setHasStarted] = useState(false);
 
   const chatEndRef = useRef(null);
+
   const activeChat = chats.find(c => c.id === activeChatId);
 
+  // AUTO SCROLL
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
+  // HEIGHT REPORTING
   useEffect(() => {
     const observer = new MutationObserver(() => {
       window.parent.postMessage(
@@ -42,6 +90,7 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
+  // API CALL
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -65,7 +114,10 @@ export default function App() {
 
           return {
             ...chat,
-            messages: [...chat.messages, { role: "ai", text: aiText }],
+            messages: [
+              ...chat.messages,
+              { role: "ai", text: aiText }
+            ],
             title: isFirstMessage
               ? (text.length > 30 ? text.slice(0, 30) + "..." : text)
               : chat.title
@@ -73,13 +125,16 @@ export default function App() {
         })
       );
 
-    } catch {
+    } catch (err) {
       setChats(prev =>
         prev.map(chat =>
           chat.id === currentChatId
             ? {
                 ...chat,
-                messages: [...chat.messages, { role: "ai", text: "Error generating response" }]
+                messages: [
+                  ...chat.messages,
+                  { role: "ai", text: "Error generating response" }
+                ]
               }
             : chat
         )
@@ -89,8 +144,11 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  // SEND MESSAGE
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+
+    if (!hasStarted) setHasStarted(true);
 
     const userText = input;
     const currentChatId = activeChatId;
@@ -101,7 +159,10 @@ export default function App() {
         chat.id === currentChatId
           ? {
               ...chat,
-              messages: [...chat.messages, { role: "user", text: userText }]
+              messages: [
+                ...chat.messages,
+                { role: "user", text: userText }
+              ]
             }
           : chat
       )
@@ -113,6 +174,7 @@ export default function App() {
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
+  // NEW CHAT
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
@@ -122,45 +184,14 @@ export default function App() {
 
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
-    setPage("chat");
+    setHasStarted(false); // 👈 Reset für Startscreen
   };
 
-  /* =========================
-     SEITEN RENDER
-  ========================= */
-  const renderPage = () => {
+  return (
+    <div style={styles.app}>
 
-    if (page === "support") {
-      return (
-        <div style={styles.page}>
-          <h2>Support</h2>
-          <p>Kontakt: support@example.com</p>
-          <button onClick={() => setPage("chat")}>← Zurück</button>
-        </div>
-      );
-    }
+      <Header />
 
-    if (page === "privacy") {
-      return (
-        <div style={styles.page}>
-          <h2>Privacy Policy</h2>
-          <p>Hier steht deine Datenschutzerklärung.</p>
-          <button onClick={() => setPage("chat")}>← Zurück</button>
-        </div>
-      );
-    }
-
-    if (page === "legal") {
-      return (
-        <div style={styles.page}>
-          <h2>Legal Notice</h2>
-          <p>Impressum / rechtliche Hinweise.</p>
-          <button onClick={() => setPage("chat")}>← Zurück</button>
-        </div>
-      );
-    }
-
-    return (
       <div style={styles.body}>
 
         {/* SIDEBAR */}
@@ -183,10 +214,17 @@ export default function App() {
           ))}
         </div>
 
-        {/* CHAT */}
+        {/* MAIN */}
         <div style={styles.main}>
 
-          <div style={styles.chatArea}>
+          <div
+            style={{
+              ...styles.chatArea,
+              flex: hasStarted ? 1 : "unset",
+              maxHeight: hasStarted ? "none" : 300,
+              overflowY: hasStarted ? "auto" : "hidden"
+            }}
+          >
             {activeChat?.messages.map((m, i) => (
               <div
                 key={i}
@@ -213,7 +251,14 @@ export default function App() {
             <div ref={chatEndRef} />
           </div>
 
-          <div style={styles.inputWrapper}>
+          <div
+            style={{
+              ...styles.inputWrapper,
+              justifyContent: "center",
+              alignItems: hasStarted ? "flex-end" : "center",
+              flex: hasStarted ? "unset" : 1
+            }}
+          >
             <div style={styles.inputBar}>
 
               <input
@@ -235,22 +280,8 @@ export default function App() {
 
         </div>
       </div>
-    );
-  };
 
-  return (
-    <div style={styles.app}>
-
-      <Header />
-
-      {renderPage()}
-
-      {/* FOOTER */}
-      <div style={styles.footer}>
-        <button onClick={() => setPage("support")} style={styles.link}>Support</button>
-        <button onClick={() => setPage("privacy")} style={styles.link}>Privacy Policy</button>
-        <button onClick={() => setPage("legal")} style={styles.link}>Legal Notice</button>
-      </div>
+      <Footer />
 
     </div>
   );
@@ -268,21 +299,10 @@ const styles = {
     background: "#ffffff"
   },
 
-  header: {
-    height: 60,
-    background: "#000",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    paddingLeft: 20,
-    fontSize: 26,
-    fontWeight: 600,
-    fontFamily: "Poppins, sans-serif"
-  },
-
   body: {
     display: "flex",
-    flex: 1
+    flex: 1,
+    overflow: "hidden"
   },
 
   sidebar: {
@@ -295,67 +315,68 @@ const styles = {
   newChat: {
     width: "100%",
     padding: 10,
-    marginBottom: 10
+    marginBottom: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer"
   },
 
   chatItem: {
     padding: 10,
+    borderRadius: 6,
     cursor: "pointer"
   },
 
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column"
+    flexDirection: "column",
+    justifyContent: "center",
+    transition: "all 0.3s ease"
   },
 
   chatArea: {
-    flex: 1,
-    overflowY: "auto",
     padding: 10
   },
 
   bubble: {
     maxWidth: 700,
     padding: 12,
+    borderRadius: 8,
     border: "1px solid #e5e7eb",
-    borderRadius: 8
+    background: "#fff"
   },
 
   inputWrapper: {
+    display: "flex",
     padding: 20
   },
 
   inputBar: {
     display: "flex",
-    gap: 10
+    gap: 10,
+    padding: 10,
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    background: "#fff",
+    width: "100%",
+    maxWidth: 800,
+    margin: "0 auto"
   },
 
   input: {
     flex: 1,
-    padding: 10
+    padding: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db"
   },
 
   button: {
-    padding: "8px 12px"
-  },
-
-  footer: {
-    borderTop: "1px solid #e5e7eb",
-    padding: 10,
-    display: "flex",
-    justifyContent: "center",
-    gap: 20
-  },
-
-  link: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    color: "#555"
-  },
-
-  page: {
-    padding: 20
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#f3f4f6",
+    cursor: "pointer"
   }
 };
