@@ -2,6 +2,17 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+/* =========================
+   HEADER
+========================= */
+function Header() {
+  return (
+    <div style={styles.header}>
+      EDMAI
+    </div>
+  );
+}
+
 export default function App() {
 
   const [chats, setChats] = useState([
@@ -11,18 +22,15 @@ export default function App() {
   const [activeChatId, setActiveChatId] = useState(1);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [page, setPage] = useState("chat"); // 👈 NEU: Seitensteuerung
+  const [page, setPage] = useState("chat");
 
   const chatEndRef = useRef(null);
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  // AUTO SCROLL
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  // HEIGHT REPORTING
   useEffect(() => {
     const observer = new MutationObserver(() => {
       window.parent.postMessage(
@@ -34,7 +42,6 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
-  // API CALL
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -66,7 +73,7 @@ export default function App() {
         })
       );
 
-    } catch (err) {
+    } catch {
       setChats(prev =>
         prev.map(chat =>
           chat.id === currentChatId
@@ -82,7 +89,6 @@ export default function App() {
     setLoading(false);
   }, []);
 
-  // SEND MESSAGE
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -107,7 +113,6 @@ export default function App() {
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
-  // NEW CHAT
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
@@ -117,13 +122,14 @@ export default function App() {
 
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
-    setPage("chat"); // 👈 zurück zum Chat
+    setPage("chat");
   };
 
   /* =========================
-     RENDER SEITEN
+     SEITEN RENDER
   ========================= */
   const renderPage = () => {
+
     if (page === "support") {
       return (
         <div style={styles.page}>
@@ -155,7 +161,8 @@ export default function App() {
     }
 
     return (
-      <>
+      <div style={styles.body}>
+
         {/* SIDEBAR */}
         <div style={styles.sidebar}>
           <button onClick={createNewChat} style={styles.newChat}>
@@ -227,12 +234,14 @@ export default function App() {
           </div>
 
         </div>
-      </>
+      </div>
     );
   };
 
   return (
     <div style={styles.app}>
+
+      <Header />
 
       {renderPage()}
 
@@ -259,6 +268,23 @@ const styles = {
     background: "#ffffff"
   },
 
+  header: {
+    height: 60,
+    background: "#000",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    paddingLeft: 20,
+    fontSize: 26,
+    fontWeight: 600,
+    fontFamily: "Poppins, sans-serif"
+  },
+
+  body: {
+    display: "flex",
+    flex: 1
+  },
+
   sidebar: {
     width: 260,
     borderRight: "1px solid #e5e7eb",
@@ -269,24 +295,18 @@ const styles = {
   newChat: {
     width: "100%",
     padding: 10,
-    marginBottom: 10,
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    cursor: "pointer"
+    marginBottom: 10
   },
 
   chatItem: {
     padding: 10,
-    borderRadius: 6,
     cursor: "pointer"
   },
 
   main: {
     flex: 1,
     display: "flex",
-    flexDirection: "column",
-    height: "100vh"
+    flexDirection: "column"
   },
 
   chatArea: {
@@ -298,35 +318,26 @@ const styles = {
   bubble: {
     maxWidth: 700,
     padding: 12,
-    borderRadius: 8,
     border: "1px solid #e5e7eb",
-    background: "#fff"
+    borderRadius: 8
   },
 
   inputWrapper: {
-    display: "flex",
     padding: 20
   },
 
   inputBar: {
     display: "flex",
-    gap: 10,
-    width: "100%",
-    maxWidth: 800,
-    margin: "0 auto"
+    gap: 10
   },
 
   input: {
     flex: 1,
-    padding: 10,
-    border: "1px solid #d1d5db"
+    padding: 10
   },
 
   button: {
-    padding: "8px 12px",
-    border: "1px solid #d1d5db",
-    background: "#f3f4f6",
-    cursor: "pointer"
+    padding: "8px 12px"
   },
 
   footer: {
@@ -341,8 +352,7 @@ const styles = {
     border: "none",
     background: "transparent",
     cursor: "pointer",
-    color: "#555",
-    fontSize: 13
+    color: "#555"
   },
 
   page: {
