@@ -40,11 +40,9 @@ function Footer() {
   return (
     <footer style={footerStyles.footer}>
       <div style={footerStyles.content}>
-        <span>© {new Date().getFullYear()} Meine Chat App</span>
-
         <div style={footerStyles.links}>
-          <a href="#" style={footerStyles.link}>Impressum</a>
-          <a href="#" style={footerStyles.link}>Datenschutz</a>
+          <a href="#" style={footerStyles.link}>Imprint</a>
+          <a href="#" style={footerStyles.link}>Privacy</a>
         </div>
       </div>
     </footer>
@@ -64,13 +62,13 @@ const footerStyles = {
     width: "100%",
     maxWidth: 1000,
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
     padding: "0 20px"
   },
   links: {
     display: "flex",
-    gap: 15
+    gap: 20
   },
   link: {
     color: "#fff",
