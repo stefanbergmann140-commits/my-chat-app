@@ -10,9 +10,10 @@ function Header() {
     <header style={headerStyles.header}>
       <div style={headerStyles.container}>
         <h1 style={headerStyles.logo}>EDMAI</h1>
-        <p style={headerStyles.subtitle}>
+
+        <span style={headerStyles.subtitle}>
           The worlds first EDM AI Agent
-        </p>
+        </span>
       </div>
     </header>
   );
@@ -23,24 +24,30 @@ const headerStyles = {
     height: 90,
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
     background: "#000",
-    borderBottom: "1px solid #111"
+    borderBottom: "1px solid #111",
+    padding: "0 20px"
   },
+
   container: {
-    textAlign: "center",
-    color: "#fff"
+    display: "flex",
+    alignItems: "baseline",
+    gap: 20
   },
+
   logo: {
     margin: 0,
     fontSize: 24,
     fontWeight: "700",
+    color: "#fff",
     letterSpacing: "1px"
   },
+
   subtitle: {
-    margin: 0,
-    fontSize: 13,
-    opacity: 0.7
+    fontSize: 30,
+    fontWeight: "600",
+    color: "#fff",
+    margin: 0
   }
 };
 
@@ -50,12 +57,10 @@ const headerStyles = {
 function Footer() {
   return (
     <footer style={footerStyles.footer}>
-      <div style={footerStyles.content}>
-        <div style={footerStyles.links}>
-          <a href="#" style={footerStyles.link}>Imprint</a>
-          <a href="#" style={footerStyles.link}>Privacy</a>
-          <a href="#" style={footerStyles.link}>Legal Policy</a>
-        </div>
+      <div style={footerStyles.links}>
+        <a href="#" style={footerStyles.link}>Imprint</a>
+        <a href="#" style={footerStyles.link}>Privacy</a>
+        <a href="#" style={footerStyles.link}>Legal Policy</a>
       </div>
     </footer>
   );
@@ -67,25 +72,22 @@ const footerStyles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#000"
+    background: "#000",
+    borderTop: "1px solid #111"
   },
-  content: {
-    width: "100%",
-    maxWidth: 1000,
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    padding: "0 20px"
-  },
+
   links: {
     display: "flex",
-    gap: 20
+    gap: 25,
+    justifyContent: "center",
+    alignItems: "center"
   },
+
   link: {
-    color: "#ffffff", // 🔥 jetzt wirklich weiß
+    color: "#ffffff",
     textDecoration: "none",
     fontSize: 12,
-    opacity: 0.9
+    opacity: 1
   }
 };
 
@@ -107,10 +109,16 @@ export default function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
+  /* =========================
+     AUTO SCROLL
+  ========================= */
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
+  /* =========================
+     HEIGHT REPORTING
+  ========================= */
   useEffect(() => {
     const observer = new MutationObserver(() => {
       window.parent.postMessage(
@@ -122,6 +130,9 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
+  /* =========================
+     API CALL
+  ========================= */
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -175,6 +186,9 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  /* =========================
+     SEND MESSAGE
+  ========================= */
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -204,6 +218,9 @@ export default function App() {
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
+  /* =========================
+     NEW CHAT
+  ========================= */
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
@@ -223,6 +240,7 @@ export default function App() {
 
       <div style={styles.body}>
 
+        {/* SIDEBAR */}
         <div style={styles.sidebar}>
           <button onClick={createNewChat} style={styles.newChat}>
             + Neuer Chat
@@ -242,6 +260,7 @@ export default function App() {
           ))}
         </div>
 
+        {/* MAIN */}
         <div style={styles.main}>
 
           <div
