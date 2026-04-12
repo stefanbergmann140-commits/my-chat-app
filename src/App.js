@@ -136,7 +136,7 @@ export default function App() {
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
-        "https://flowise-1-4fly.onrender.com/api/v1/prediction/e20bf3ea-8f22-4c1b-95d0-209df14bd2ed",
+        "https://flowise-production-86eb.up.railway.app/api/v1/prediction/77fe7e7c-0238-4f2b-a688-abc4e4e2c43c",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
