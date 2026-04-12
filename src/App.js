@@ -52,15 +52,25 @@ const headerStyles = {
 };
 
 /* =========================
-   FOOTER
+   FOOTER (FIXED)
 ========================= */
 function Footer() {
   return (
     <footer style={footerStyles.footer}>
       <div style={footerStyles.links}>
-        <a href="#" style={footerStyles.link}>Imprint</a>
-        <a href="#" style={footerStyles.link}>Privacy</a>
-        <a href="#" style={footerStyles.link}>Legal Policy</a>
+
+        <a href="/imprint" style={footerStyles.link}>
+          Imprint
+        </a>
+
+        <a href="/privacy" style={footerStyles.link}>
+          Privacy
+        </a>
+
+        <a href="/legal" style={footerStyles.link}>
+          Legal Policy
+        </a>
+
       </div>
     </footer>
   );
@@ -109,16 +119,10 @@ export default function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
-  /* =========================
-     AUTO SCROLL
-  ========================= */
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  /* =========================
-     HEIGHT REPORTING
-  ========================= */
   useEffect(() => {
     const observer = new MutationObserver(() => {
       window.parent.postMessage(
@@ -130,9 +134,6 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
-  /* =========================
-     API CALL
-  ========================= */
   const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
     try {
       const res = await fetch(
@@ -186,9 +187,6 @@ export default function App() {
     setLoading(false);
   }, []);
 
-  /* =========================
-     SEND MESSAGE
-  ========================= */
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -218,9 +216,6 @@ export default function App() {
     await handleUserMessage(userText, currentChatId, isFirstMessage);
   };
 
-  /* =========================
-     NEW CHAT
-  ========================= */
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
@@ -240,7 +235,6 @@ export default function App() {
 
       <div style={styles.body}>
 
-        {/* SIDEBAR */}
         <div style={styles.sidebar}>
           <button onClick={createNewChat} style={styles.newChat}>
             + Neuer Chat
@@ -260,17 +254,15 @@ export default function App() {
           ))}
         </div>
 
-        {/* MAIN */}
         <div style={styles.main}>
 
-          <div
-            style={{
-              ...styles.chatArea,
-              flex: hasStarted ? 1 : "unset",
-              maxHeight: hasStarted ? "none" : 300,
-              overflowY: hasStarted ? "auto" : "hidden"
-            }}
-          >
+          <div style={{
+            ...styles.chatArea,
+            flex: hasStarted ? 1 : "unset",
+            maxHeight: hasStarted ? "none" : 300,
+            overflowY: hasStarted ? "auto" : "hidden"
+          }}>
+
             {activeChat?.messages.map((m, i) => (
               <div
                 key={i}
@@ -297,14 +289,12 @@ export default function App() {
             <div ref={chatEndRef} />
           </div>
 
-          <div
-            style={{
-              ...styles.inputWrapper,
-              justifyContent: "center",
-              alignItems: hasStarted ? "flex-end" : "center",
-              flex: hasStarted ? "unset" : 1
-            }}
-          >
+          <div style={{
+            ...styles.inputWrapper,
+            justifyContent: "center",
+            alignItems: hasStarted ? "flex-end" : "center",
+            flex: hasStarted ? "unset" : 1
+          }}>
             <div style={styles.inputBar}>
 
               <input
