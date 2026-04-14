@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { createClient } from "@supabase/supabase-js";
 import {
   SignedIn,
   SignedOut,
   SignIn,
   UserButton,
+  useSession,
   useUser
 } from "@clerk/clerk-react";
 
@@ -15,6 +17,10 @@ import {
 const FLOWISE_BASE_URL = "https://flowise-production-86eb.up.railway.app/api/v1";
 const CHATFLOW_ID = "77fe7e7c-0238-4f2b-a688-abc4e4e2c43c";
 const FLOWISE_API_KEY = "";
+
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY =
+  process.env.REACT_APP_SUPABASE_PUBLISHABLE_KEY;
 
 /* =========================
    HELPERS
@@ -51,6 +57,20 @@ async function uploadFilesToFlowise(files, chatId) {
   }
 
   return await res.json();
+}
+
+function createClerkSupabaseClient(session) {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error(
+      "Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_PUBLISHABLE_KEY"
+    );
+  }
+
+  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    accessToken: async () => {
+      return (await session?.getToken()) ?? null;
+    }
+  });
 }
 
 /* =========================
@@ -219,13 +239,16 @@ const authStyles = {
    CHAT APP
 ========================= */
 function ChatApp() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
+  const { session } = useSession();
 
-  const [chats, setChats] = useState([
-    { id: "1", title: "New Chat", messages: [] }
-  ]);
+  const supabase = useMemo(() => {
+    if (!session) return null;
+    return createClerkSupabaseClient(session);
+  }, [session]);
 
-  const [activeChatId, setActiveChatId] = useState("1");
+  const [chats, setChats] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -233,13 +256,85 @@ function ChatApp() {
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [pendingUploads, setPendingUploads] = useState([]);
+  const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState("");
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const inputRef = useRef(null);
 
-  const activeChat = chats.find((c) => c.id === activeChatId);
+  const activeChat = chats.find((c) => c.id === activeChatId) || null;
+
+  const filteredChats = useMemo(() => {
+    const query = sessionSearch.trim().toLowerCase();
+
+    if (!query) return chats;
+
+    return chats.filter((chat) => {
+      const titleMatch = (chat.title || "").toLowerCase().includes(query);
+
+      const messageMatch = (chat.messages || []).some((message) =>
+        String(message.text || "").toLowerCase().includes(query)
+      );
+
+      return titleMatch || messageMatch;
+    });
+  }, [chats, sessionSearch]);
+
+  const loadChats = useCallback(async () => {
+    if (!supabase || !isSignedIn) return;
+
+    setDbError("");
+
+    const { data, error } = await supabase
+      .from("chats")
+      .select("id, user_id, title, messages, created_at, updated_at")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      setDbError(error.message || "Failed to load chats.");
+      return;
+    }
+
+    const safeChats = Array.isArray(data) ? data : [];
+
+    setChats(safeChats);
+    setDbReady(true);
+
+    if (safeChats.length > 0) {
+      setActiveChatId((prev) => prev ?? safeChats[0].id);
+      setHasStarted(safeChats.some((chat) => (chat.messages || []).length > 0));
+    } else {
+      const starterChat = {
+        id: String(Date.now()),
+        title: "New Chat",
+        messages: [],
+        user_id: user?.id || "",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("chats")
+        .insert({
+          id: starterChat.id,
+          title: starterChat.title,
+          messages: starterChat.messages
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        setDbError(insertError.message || "Failed to create starter chat.");
+        return;
+      }
+
+      setChats([inserted]);
+      setActiveChatId(inserted.id);
+      setHasStarted(false);
+    }
+  }, [supabase, isSignedIn, user?.id]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -306,85 +401,122 @@ function ChatApp() {
     recognitionRef.current = recognition;
   }, []);
 
-  const filteredChats = useMemo(() => {
-    const query = sessionSearch.trim().toLowerCase();
+  useEffect(() => {
+    if (isSignedIn && supabase) {
+      loadChats();
+    }
+  }, [isSignedIn, supabase, loadChats]);
 
-    if (!query) return chats;
+  const persistChat = useCallback(
+    async (chat) => {
+      if (!supabase || !isSignedIn || !chat) return;
 
-    return chats.filter((chat) => {
-      const titleMatch = chat.title.toLowerCase().includes(query);
+      const payload = {
+        id: chat.id,
+        title: chat.title || "New Chat",
+        messages: chat.messages || [],
+        updated_at: new Date().toISOString()
+      };
 
-      const messageMatch = chat.messages.some((message) =>
-        message.text.toLowerCase().includes(query)
-      );
+      const { data, error } = await supabase
+        .from("chats")
+        .upsert(payload)
+        .select()
+        .single();
 
-      return titleMatch || messageMatch;
-    });
-  }, [chats, sessionSearch]);
-
-  const handleUserMessage = useCallback(async (text, currentChatId, isFirstMessage) => {
-    try {
-      const res = await fetch(
-        `${FLOWISE_BASE_URL}/prediction/${CHATFLOW_ID}`,
-        {
-          method: "POST",
-          headers: getAuthHeaders({
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({
-            question: text,
-            chatId: currentChatId
-          })
-        }
-      );
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Prediction request failed");
+      if (error) {
+        throw new Error(error.message || "Failed to save chat.");
       }
 
-      const data = await res.json();
-      const aiText = data.text || data.answer || "No response";
+      return data;
+    },
+    [supabase, isSignedIn]
+  );
 
-      setChats((prev) =>
-        prev.map((chat) => {
-          if (chat.id !== currentChatId) return chat;
+  const handleUserMessage = useCallback(
+    async (text, currentChatId, isFirstMessage) => {
+      try {
+        const res = await fetch(
+          `${FLOWISE_BASE_URL}/prediction/${CHATFLOW_ID}`,
+          {
+            method: "POST",
+            headers: getAuthHeaders({
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+              question: text,
+              chatId: currentChatId
+            })
+          }
+        );
 
-          return {
-            ...chat,
-            messages: [...chat.messages, { role: "ai", text: aiText }],
-            title: isFirstMessage
-              ? text.length > 30
-                ? text.slice(0, 30) + "..."
-                : text
-              : chat.title
-          };
-        })
-      );
-    } catch (err) {
-      setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === currentChatId
-            ? {
-                ...chat,
-                messages: [
-                  ...chat.messages,
-                  {
-                    role: "ai",
-                    text: `Error generating response${
-                      err?.message ? `: ${err.message}` : ""
-                    }`
-                  }
-                ]
-              }
-            : chat
-        )
-      );
-    }
-  }, []);
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || "Prediction request failed");
+        }
+
+        const data = await res.json();
+        const aiText = data.text || data.answer || "No response";
+
+        let updatedChat = null;
+
+        setChats((prev) =>
+          prev.map((chat) => {
+            if (chat.id !== currentChatId) return chat;
+
+            updatedChat = {
+              ...chat,
+              messages: [...chat.messages, { role: "ai", text: aiText }],
+              title: isFirstMessage
+                ? text.length > 30
+                  ? text.slice(0, 30) + "..."
+                  : text
+                : chat.title
+            };
+
+            return updatedChat;
+          })
+        );
+
+        if (updatedChat) {
+          await persistChat(updatedChat);
+        }
+      } catch (err) {
+        let erroredChat = null;
+
+        setChats((prev) =>
+          prev.map((chat) => {
+            if (chat.id !== currentChatId) return chat;
+
+            erroredChat = {
+              ...chat,
+              messages: [
+                ...chat.messages,
+                {
+                  role: "ai",
+                  text: `Error generating response${
+                    err?.message ? `: ${err.message}` : ""
+                  }`
+                }
+              ]
+            };
+
+            return erroredChat;
+          })
+        );
+
+        if (erroredChat) {
+          try {
+            await persistChat(erroredChat);
+          } catch (_) {}
+        }
+      }
+    },
+    [persistChat]
+  );
 
   const sendMessage = async () => {
-    if (!isSignedIn) return;
+    if (!isSignedIn || !activeChat) return;
     if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
     if (!hasStarted) setHasStarted(true);
@@ -396,56 +528,72 @@ function ChatApp() {
         : "");
 
     const currentChatId = activeChatId;
-    const isFirstMessage = activeChat?.messages.length === 0;
+    const isFirstMessage = activeChat.messages.length === 0;
 
     const uploadPreviewMessages = pendingUploads.map((file) => ({
       role: "user",
       text: `📎 File attached: ${file.name}`
     }));
 
+    let updatedChat = null;
+
     setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === currentChatId
-          ? {
-              ...chat,
-              messages: [
-                ...chat.messages,
-                ...(input.trim() ? [{ role: "user", text: userText }] : []),
-                ...uploadPreviewMessages
-              ]
-            }
-          : chat
-      )
+      prev.map((chat) => {
+        if (chat.id !== currentChatId) return chat;
+
+        updatedChat = {
+          ...chat,
+          messages: [
+            ...chat.messages,
+            ...(input.trim() ? [{ role: "user", text: userText }] : []),
+            ...uploadPreviewMessages
+          ]
+        };
+
+        return updatedChat;
+      })
     );
 
     setInput("");
     setLoading(true);
 
     try {
+      if (updatedChat) {
+        await persistChat(updatedChat);
+      }
+
       if (pendingUploads.length > 0) {
         await uploadFilesToFlowise(pendingUploads, currentChatId);
       }
 
       await handleUserMessage(userText, currentChatId, isFirstMessage);
     } catch (err) {
+      let erroredChat = null;
+
       setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === currentChatId
-            ? {
-                ...chat,
-                messages: [
-                  ...chat.messages,
-                  {
-                    role: "ai",
-                    text: `Upload error${
-                      err?.message ? `: ${err.message}` : ""
-                    }`
-                  }
-                ]
+        prev.map((chat) => {
+          if (chat.id !== currentChatId) return chat;
+
+          erroredChat = {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                role: "ai",
+                text: `Upload error${err?.message ? `: ${err.message}` : ""}`
               }
-            : chat
-        )
+            ]
+          };
+
+          return erroredChat;
+        })
       );
+
+      if (erroredChat) {
+        try {
+          await persistChat(erroredChat);
+        } catch (_) {}
+      }
     } finally {
       setPendingUploads([]);
 
@@ -458,24 +606,39 @@ function ChatApp() {
     }
   };
 
-  const createNewChat = () => {
-    if (!isSignedIn) return;
+  const createNewChat = async () => {
+    if (!isSignedIn || !supabase) return;
 
     const newChat = {
       id: String(Date.now()),
       title: "New Chat",
-      messages: []
+      messages: [],
+      updated_at: new Date().toISOString()
     };
 
-    setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-    setHasStarted(false);
-    setInput("");
-    setPendingUploads([]);
+    try {
+      const { data, error } = await supabase
+        .from("chats")
+        .insert(newChat)
+        .select()
+        .single();
 
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
+      if (error) {
+        throw new Error(error.message || "Failed to create chat.");
+      }
+
+      setChats((prev) => [data, ...prev]);
+      setActiveChatId(data.id);
+      setHasStarted(false);
+      setInput("");
+      setPendingUploads([]);
+
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+    } catch (err) {
+      setDbError(err.message || "Failed to create chat.");
+    }
   };
 
   const toggleRecording = () => {
@@ -530,6 +693,21 @@ function ChatApp() {
     inputRef.current?.focus();
   };
 
+  const openChat = (chatId) => {
+    if (!isSignedIn) return;
+    setActiveChatId(chatId);
+  };
+
+  if (!dbReady && !dbError) {
+    return (
+      <div style={styles.app}>
+        <Header />
+        <div style={styles.centerState}>Loading your chats...</div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div style={styles.app}>
       <Header />
@@ -564,15 +742,14 @@ function ChatApp() {
             disabled={!isSignedIn}
           />
 
+          {dbError ? <div style={styles.errorBox}>{dbError}</div> : null}
+
           <div style={styles.chatList}>
             {filteredChats.length > 0 ? (
               filteredChats.map((chat) => (
                 <div
                   key={chat.id}
-                  onClick={() => {
-                    if (!isSignedIn) return;
-                    setActiveChatId(chat.id);
-                  }}
+                  onClick={() => openChat(chat.id)}
                   style={{
                     ...styles.chatItem,
                     background:
@@ -685,7 +862,8 @@ function ChatApp() {
                   style={{
                     ...styles.iconButton,
                     ...(isRecording ? styles.recordingButton : {}),
-                    ...(speechSupported ? {} : styles.disabledButton)
+                    ...(speechSupported ? {} : styles.disabledButton),
+                    ...(!isSignedIn ? styles.disabledButton : {})
                   }}
                   title="Voice input"
                   disabled={!speechSupported || !isSignedIn}
@@ -719,7 +897,10 @@ function ChatApp() {
 
                 <button
                   onClick={sendMessage}
-                  style={styles.button}
+                  style={{
+                    ...styles.button,
+                    ...(!isSignedIn ? styles.disabledButton : {})
+                  }}
                   disabled={!isSignedIn}
                 >
                   Send
@@ -967,5 +1148,23 @@ const styles = {
   disabledButton: {
     opacity: 0.5,
     cursor: "not-allowed"
+  },
+
+  errorBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#fef2f2",
+    color: "#991b1b",
+    fontSize: 12,
+    border: "1px solid #fecaca"
+  },
+
+  centerState: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 16,
+    color: "#6b7280"
   }
 };

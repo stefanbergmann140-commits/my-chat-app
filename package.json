@@ -5,6 +5,7 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.61.4",
     "@clerk/react": "^6.3.0",
+    "@supabase/supabase-js": "^2.103.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
