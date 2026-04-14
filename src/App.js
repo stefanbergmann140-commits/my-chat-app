@@ -3,9 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createClient } from "@supabase/supabase-js";
 import {
-  SignedIn,
-  SignedOut,
-  SignIn,
+  SignInButton,
   UserButton,
   useSession,
   useUser
@@ -76,7 +74,7 @@ function createClerkSupabaseClient(session) {
 /* =========================
    HEADER
 ========================= */
-function Header() {
+function Header({ isSignedIn }) {
   return (
     <header style={headerStyles.header}>
       <div style={headerStyles.container}>
@@ -84,16 +82,22 @@ function Header() {
       </div>
 
       <div style={headerStyles.userArea}>
-        <UserButton
-          appearance={{
-            elements: {
-              avatarBox: {
-                width: 36,
-                height: 36
+        {isSignedIn ? (
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: {
+                  width: 36,
+                  height: 36
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+        ) : (
+          <SignInButton mode="modal">
+            <button style={headerStyles.loginButton}>Login</button>
+          </SignInButton>
+        )}
       </div>
     </header>
   );
@@ -126,6 +130,16 @@ const headerStyles = {
   userArea: {
     display: "flex",
     alignItems: "center"
+  },
+
+  loginButton: {
+    padding: "10px 16px",
+    borderRadius: 8,
+    border: "1px solid #2a2a2a",
+    background: "#fff",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 600
   }
 };
 
@@ -178,77 +192,21 @@ const footerStyles = {
 };
 
 /* =========================
-   LOGIN SCREEN
+   APP
 ========================= */
-function AuthScreen() {
-  return (
-    <div style={authStyles.page}>
-      <div style={authStyles.card}>
-        <h1 style={authStyles.title}>Welcome to EDMAI</h1>
-        <p style={authStyles.subtitle}>
-          Sign in with Email, Google, or Apple to access your chat.
-        </p>
-
-        <SignIn
-          routing="hash"
-          appearance={{
-            elements: {
-              card: {
-                boxShadow: "none",
-                border: "1px solid #e5e7eb",
-                width: "100%"
-              }
-            }
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-const authStyles = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f9fafb",
-    padding: 20
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: 460,
-    textAlign: "center"
-  },
-
-  title: {
-    margin: "0 0 8px 0",
-    fontSize: 28,
-    color: "#111827"
-  },
-
-  subtitle: {
-    margin: "0 0 20px 0",
-    color: "#6b7280",
-    fontSize: 14
-  }
-};
-
-/* =========================
-   CHAT APP
-========================= */
-function ChatApp() {
+export default function App() {
   const { isSignedIn, user } = useUser();
   const { session } = useSession();
 
   const supabase = useMemo(() => {
-    if (!session) return null;
+    if (!session || !isSignedIn) return null;
     return createClerkSupabaseClient(session);
-  }, [session]);
+  }, [session, isSignedIn]);
 
-  const [chats, setChats] = useState([]);
-  const [activeChatId, setActiveChatId] = useState(null);
+  const [chats, setChats] = useState([
+    { id: "guest-1", title: "New Chat", messages: [] }
+  ]);
+  const [activeChatId, setActiveChatId] = useState("guest-1");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -294,46 +252,51 @@ function ChatApp() {
 
     if (error) {
       setDbError(error.message || "Failed to load chats.");
+      setDbReady(true);
       return;
     }
 
     const safeChats = Array.isArray(data) ? data : [];
 
-    setChats(safeChats);
-    setDbReady(true);
-
     if (safeChats.length > 0) {
-      setActiveChatId((prev) => prev ?? safeChats[0].id);
-      setHasStarted(safeChats.some((chat) => (chat.messages || []).length > 0));
-    } else {
-      const starterChat = {
-        id: String(Date.now()),
-        title: "New Chat",
-        messages: [],
-        user_id: user?.id || "",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const { data: inserted, error: insertError } = await supabase
-        .from("chats")
-        .insert({
-          id: starterChat.id,
-          title: starterChat.title,
-          messages: starterChat.messages
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        setDbError(insertError.message || "Failed to create starter chat.");
-        return;
-      }
-
-      setChats([inserted]);
-      setActiveChatId(inserted.id);
-      setHasStarted(false);
+      setChats(safeChats);
+      setActiveChatId(safeChats[0].id);
+      setHasStarted(
+        safeChats.some((chat) => Array.isArray(chat.messages) && chat.messages.length > 0)
+      );
+      setDbReady(true);
+      return;
     }
+
+    const starterChat = {
+      id: String(Date.now()),
+      title: "New Chat",
+      messages: [],
+      user_id: user?.id || "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("chats")
+      .insert({
+        id: starterChat.id,
+        title: starterChat.title,
+        messages: starterChat.messages
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      setDbError(insertError.message || "Failed to create starter chat.");
+      setDbReady(true);
+      return;
+    }
+
+    setChats([inserted]);
+    setActiveChatId(inserted.id);
+    setHasStarted(false);
+    setDbReady(true);
   }, [supabase, isSignedIn, user?.id]);
 
   useEffect(() => {
@@ -404,6 +367,14 @@ function ChatApp() {
   useEffect(() => {
     if (isSignedIn && supabase) {
       loadChats();
+    } else {
+      setChats([{ id: "guest-1", title: "New Chat", messages: [] }]);
+      setActiveChatId("guest-1");
+      setHasStarted(false);
+      setDbReady(false);
+      setDbError("");
+      setPendingUploads([]);
+      setSessionSearch("");
     }
   }, [isSignedIn, supabase, loadChats]);
 
@@ -478,7 +449,7 @@ function ChatApp() {
           })
         );
 
-        if (updatedChat) {
+        if (updatedChat && isSignedIn) {
           await persistChat(updatedChat);
         }
       } catch (err) {
@@ -505,18 +476,24 @@ function ChatApp() {
           })
         );
 
-        if (erroredChat) {
+        if (erroredChat && isSignedIn) {
           try {
             await persistChat(erroredChat);
           } catch (_) {}
         }
       }
     },
-    [persistChat]
+    [persistChat, isSignedIn]
   );
 
   const sendMessage = async () => {
-    if (!isSignedIn || !activeChat) return;
+    if (!activeChat) return;
+
+    if (!isSignedIn) {
+      alert("Please log in to create and save chats.");
+      return;
+    }
+
     if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
     if (!hasStarted) setHasStarted(true);
@@ -607,7 +584,10 @@ function ChatApp() {
   };
 
   const createNewChat = async () => {
-    if (!isSignedIn || !supabase) return;
+    if (!isSignedIn || !supabase) {
+      alert("Please log in to create a new chat.");
+      return;
+    }
 
     const newChat = {
       id: String(Date.now()),
@@ -642,7 +622,10 @@ function ChatApp() {
   };
 
   const toggleRecording = () => {
-    if (!isSignedIn) return;
+    if (!isSignedIn) {
+      alert("Please log in to use voice input.");
+      return;
+    }
 
     if (!recognitionRef.current) {
       alert("Speech recognition is not supported in this browser.");
@@ -657,7 +640,10 @@ function ChatApp() {
   };
 
   const handleFileSelect = (event) => {
-    if (!isSignedIn) return;
+    if (!isSignedIn) {
+      alert("Please log in to upload files.");
+      return;
+    }
 
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
@@ -694,23 +680,19 @@ function ChatApp() {
   };
 
   const openChat = (chatId) => {
-    if (!isSignedIn) return;
+    if (!isSignedIn) {
+      alert("Please log in to access saved chats.");
+      return;
+    }
+
     setActiveChatId(chatId);
   };
 
-  if (!dbReady && !dbError) {
-    return (
-      <div style={styles.app}>
-        <Header />
-        <div style={styles.centerState}>Loading your chats...</div>
-        <Footer />
-      </div>
-    );
-  }
+  const showDbLoading = isSignedIn && !dbReady && !dbError;
 
   return (
     <div style={styles.app}>
-      <Header />
+      <Header isSignedIn={isSignedIn} />
 
       <div style={styles.body}>
         <div style={styles.sidebar}>
@@ -733,7 +715,9 @@ function ChatApp() {
               if (!isSignedIn) return;
               setSessionSearch(e.target.value);
             }}
-            placeholder="Search sessions..."
+            placeholder={
+              isSignedIn ? "Search sessions..." : "Login to search sessions..."
+            }
             style={{
               ...styles.searchInput,
               opacity: isSignedIn ? 1 : 0.5,
@@ -741,6 +725,12 @@ function ChatApp() {
             }}
             disabled={!isSignedIn}
           />
+
+          {!isSignedIn ? (
+            <div style={styles.infoBox}>
+              Log in to create, search, and save your chats.
+            </div>
+          ) : null}
 
           {dbError ? <div style={styles.errorBox}>{dbError}</div> : null}
 
@@ -774,162 +764,158 @@ function ChatApp() {
         </div>
 
         <div style={styles.main}>
-          <div
-            style={{
-              ...styles.chatArea,
-              flex: hasStarted ? 1 : "unset",
-              maxHeight: hasStarted ? "none" : 300,
-              overflowY: hasStarted ? "auto" : "hidden"
-            }}
-          >
-            {activeChat?.messages.map((m, i) => (
+          {showDbLoading ? (
+            <div style={styles.centerState}>Loading your chats...</div>
+          ) : (
+            <>
               <div
-                key={i}
                 style={{
-                  display: "flex",
-                  justifyContent:
-                    m.role === "user" ? "flex-end" : "flex-start",
-                  padding: 10
+                  ...styles.chatArea,
+                  flex: hasStarted ? 1 : "unset",
+                  maxHeight: hasStarted ? "none" : 300,
+                  overflowY: hasStarted ? "auto" : "hidden"
                 }}
               >
-                <div
-                  style={{
-                    ...styles.bubble,
-                    ...(m.role === "user" ? styles.userBubble : styles.aiBubble)
-                  }}
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {m.text}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div style={{ padding: 10, opacity: 0.6 }}>
-                Bot is typing...
-              </div>
-            )}
-
-            <div ref={chatEndRef} />
-          </div>
-
-          <div
-            style={{
-              ...styles.inputWrapper,
-              justifyContent: "center",
-              alignItems: hasStarted ? "flex-end" : "center",
-              flex: hasStarted ? "unset" : 1
-            }}
-          >
-            <div style={styles.composerWrap}>
-              {pendingUploads.length > 0 && (
-                <div style={styles.uploadPreviewBar}>
-                  {pendingUploads.map((file, index) => (
+                {activeChat?.messages.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent:
+                        m.role === "user" ? "flex-end" : "flex-start",
+                      padding: 10
+                    }}
+                  >
                     <div
-                      key={`${file.name}-${file.size}-${index}`}
-                      style={styles.uploadChip}
+                      style={{
+                        ...styles.bubble,
+                        ...(m.role === "user"
+                          ? styles.userBubble
+                          : styles.aiBubble)
+                      }}
                     >
-                      <span style={styles.uploadChipText}>{file.name}</span>
-
-                      <button
-                        onClick={() => removePendingUpload(index)}
-                        style={styles.uploadChipRemove}
-                        title="Remove"
-                      >
-                        ×
-                      </button>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.text}
+                      </ReactMarkdown>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
 
-              <div style={styles.inputBar}>
-                <input
-                  ref={inputRef}
-                  autoFocus
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type a message..."
-                  style={styles.input}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") sendMessage();
-                  }}
-                />
+                {loading && (
+                  <div style={{ padding: 10, opacity: 0.6 }}>
+                    Bot is typing...
+                  </div>
+                )}
 
-                <button
-                  onClick={toggleRecording}
-                  style={{
-                    ...styles.iconButton,
-                    ...(isRecording ? styles.recordingButton : {}),
-                    ...(speechSupported ? {} : styles.disabledButton),
-                    ...(!isSignedIn ? styles.disabledButton : {})
-                  }}
-                  title="Voice input"
-                  disabled={!speechSupported || !isSignedIn}
-                >
-                  🎤
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (!isSignedIn) return;
-                    fileInputRef.current?.click();
-                  }}
-                  style={{
-                    ...styles.iconButton,
-                    ...(!isSignedIn ? styles.disabledButton : {})
-                  }}
-                  title="Upload file"
-                  disabled={!isSignedIn}
-                >
-                  📎
-                </button>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  style={{ display: "none" }}
-                  onChange={handleFileSelect}
-                  disabled={!isSignedIn}
-                />
-
-                <button
-                  onClick={sendMessage}
-                  style={{
-                    ...styles.button,
-                    ...(!isSignedIn ? styles.disabledButton : {})
-                  }}
-                  disabled={!isSignedIn}
-                >
-                  Send
-                </button>
+                <div ref={chatEndRef} />
               </div>
-            </div>
-          </div>
+
+              <div
+                style={{
+                  ...styles.inputWrapper,
+                  justifyContent: "center",
+                  alignItems: hasStarted ? "flex-end" : "center",
+                  flex: hasStarted ? "unset" : 1
+                }}
+              >
+                <div style={styles.composerWrap}>
+                  {pendingUploads.length > 0 && (
+                    <div style={styles.uploadPreviewBar}>
+                      {pendingUploads.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${index}`}
+                          style={styles.uploadChip}
+                        >
+                          <span style={styles.uploadChipText}>{file.name}</span>
+
+                          <button
+                            onClick={() => removePendingUpload(index)}
+                            style={styles.uploadChipRemove}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={styles.inputBar}>
+                    <input
+                      ref={inputRef}
+                      autoFocus
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder={
+                        isSignedIn
+                          ? "Type a message..."
+                          : "Login to start chatting..."
+                      }
+                      style={styles.input}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") sendMessage();
+                      }}
+                      disabled={!isSignedIn}
+                    />
+
+                    <button
+                      onClick={toggleRecording}
+                      style={{
+                        ...styles.iconButton,
+                        ...(isRecording ? styles.recordingButton : {}),
+                        ...(speechSupported ? {} : styles.disabledButton),
+                        ...(!isSignedIn ? styles.disabledButton : {})
+                      }}
+                      title="Voice input"
+                      disabled={!speechSupported || !isSignedIn}
+                    >
+                      🎤
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!isSignedIn) return;
+                        fileInputRef.current?.click();
+                      }}
+                      style={{
+                        ...styles.iconButton,
+                        ...(!isSignedIn ? styles.disabledButton : {})
+                      }}
+                      title="Upload file"
+                      disabled={!isSignedIn}
+                    >
+                      📎
+                    </button>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={handleFileSelect}
+                      disabled={!isSignedIn}
+                    />
+
+                    <button
+                      onClick={sendMessage}
+                      style={{
+                        ...styles.button,
+                        ...(!isSignedIn ? styles.disabledButton : {})
+                      }}
+                      disabled={!isSignedIn}
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <Footer />
     </div>
-  );
-}
-
-/* =========================
-   ROOT APP
-========================= */
-export default function App() {
-  return (
-    <>
-      <SignedOut>
-        <AuthScreen />
-      </SignedOut>
-
-      <SignedIn>
-        <ChatApp />
-      </SignedIn>
-    </>
   );
 }
 
@@ -1157,6 +1143,15 @@ const styles = {
     color: "#991b1b",
     fontSize: 12,
     border: "1px solid #fecaca"
+  },
+
+  infoBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    fontSize: 12,
+    border: "1px solid #bfdbfe"
   },
 
   centerState: {
