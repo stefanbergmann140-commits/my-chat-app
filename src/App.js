@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  SignedIn,
+  SignedOut,
+  SignIn,
+  UserButton,
+  useUser
+} from "@clerk/clerk-react";
 
 /* =========================
    CONFIG
@@ -55,6 +62,19 @@ function Header() {
       <div style={headerStyles.container}>
         <h1 style={headerStyles.logo}>EDMAI</h1>
       </div>
+
+      <div style={headerStyles.userArea}>
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: {
+                width: 36,
+                height: 36
+              }
+            }
+          }}
+        />
+      </div>
     </header>
   );
 }
@@ -64,6 +84,7 @@ const headerStyles = {
     height: 90,
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
     background: "#000",
     borderBottom: "1px solid #111",
     padding: "0 20px"
@@ -80,6 +101,11 @@ const headerStyles = {
     fontWeight: "700",
     color: "#fff",
     letterSpacing: "1px"
+  },
+
+  userArea: {
+    display: "flex",
+    alignItems: "center"
   }
 };
 
@@ -132,9 +158,69 @@ const footerStyles = {
 };
 
 /* =========================
-   APP
+   LOGIN SCREEN
 ========================= */
-export default function App() {
+function AuthScreen() {
+  return (
+    <div style={authStyles.page}>
+      <div style={authStyles.card}>
+        <h1 style={authStyles.title}>Welcome to EDMAI</h1>
+        <p style={authStyles.subtitle}>
+          Sign in with Email, Google, or Apple to access your chat.
+        </p>
+
+        <SignIn
+          routing="hash"
+          appearance={{
+            elements: {
+              card: {
+                boxShadow: "none",
+                border: "1px solid #e5e7eb",
+                width: "100%"
+              }
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const authStyles = {
+  page: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#f9fafb",
+    padding: 20
+  },
+
+  card: {
+    width: "100%",
+    maxWidth: 460,
+    textAlign: "center"
+  },
+
+  title: {
+    margin: "0 0 8px 0",
+    fontSize: 28,
+    color: "#111827"
+  },
+
+  subtitle: {
+    margin: "0 0 20px 0",
+    color: "#6b7280",
+    fontSize: 14
+  }
+};
+
+/* =========================
+   CHAT APP
+========================= */
+function ChatApp() {
+  const { isSignedIn } = useUser();
+
   const [chats, setChats] = useState([
     { id: "1", title: "New Chat", messages: [] }
   ]);
@@ -298,6 +384,7 @@ export default function App() {
   }, []);
 
   const sendMessage = async () => {
+    if (!isSignedIn) return;
     if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
     if (!hasStarted) setHasStarted(true);
@@ -372,6 +459,8 @@ export default function App() {
   };
 
   const createNewChat = () => {
+    if (!isSignedIn) return;
+
     const newChat = {
       id: String(Date.now()),
       title: "New Chat",
@@ -390,6 +479,8 @@ export default function App() {
   };
 
   const toggleRecording = () => {
+    if (!isSignedIn) return;
+
     if (!recognitionRef.current) {
       alert("Speech recognition is not supported in this browser.");
       return;
@@ -403,6 +494,8 @@ export default function App() {
   };
 
   const handleFileSelect = (event) => {
+    if (!isSignedIn) return;
+
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
 
@@ -424,6 +517,8 @@ export default function App() {
   };
 
   const removePendingUpload = (indexToRemove) => {
+    if (!isSignedIn) return;
+
     setPendingUploads((prev) =>
       prev.filter((_, index) => index !== indexToRemove)
     );
@@ -441,16 +536,32 @@ export default function App() {
 
       <div style={styles.body}>
         <div style={styles.sidebar}>
-          <button onClick={createNewChat} style={styles.newChat}>
+          <button
+            onClick={createNewChat}
+            style={{
+              ...styles.newChat,
+              opacity: isSignedIn ? 1 : 0.5,
+              cursor: isSignedIn ? "pointer" : "not-allowed"
+            }}
+            disabled={!isSignedIn}
+          >
             + New Chat
           </button>
 
           <input
             type="text"
             value={sessionSearch}
-            onChange={(e) => setSessionSearch(e.target.value)}
+            onChange={(e) => {
+              if (!isSignedIn) return;
+              setSessionSearch(e.target.value);
+            }}
             placeholder="Search sessions..."
-            style={styles.searchInput}
+            style={{
+              ...styles.searchInput,
+              opacity: isSignedIn ? 1 : 0.5,
+              cursor: isSignedIn ? "text" : "not-allowed"
+            }}
+            disabled={!isSignedIn}
           />
 
           <div style={styles.chatList}>
@@ -458,11 +569,16 @@ export default function App() {
               filteredChats.map((chat) => (
                 <div
                   key={chat.id}
-                  onClick={() => setActiveChatId(chat.id)}
+                  onClick={() => {
+                    if (!isSignedIn) return;
+                    setActiveChatId(chat.id);
+                  }}
                   style={{
                     ...styles.chatItem,
                     background:
-                      chat.id === activeChatId ? "#e5e7eb" : "transparent"
+                      chat.id === activeChatId ? "#e5e7eb" : "transparent",
+                    cursor: isSignedIn ? "pointer" : "not-allowed",
+                    opacity: isSignedIn ? 1 : 0.6
                   }}
                 >
                   <div style={styles.chatTitle}>{chat.title}</div>
@@ -572,15 +688,22 @@ export default function App() {
                     ...(speechSupported ? {} : styles.disabledButton)
                   }}
                   title="Voice input"
-                  disabled={!speechSupported}
+                  disabled={!speechSupported || !isSignedIn}
                 >
                   🎤
                 </button>
 
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  style={styles.iconButton}
+                  onClick={() => {
+                    if (!isSignedIn) return;
+                    fileInputRef.current?.click();
+                  }}
+                  style={{
+                    ...styles.iconButton,
+                    ...(!isSignedIn ? styles.disabledButton : {})
+                  }}
                   title="Upload file"
+                  disabled={!isSignedIn}
                 >
                   📎
                 </button>
@@ -591,9 +714,14 @@ export default function App() {
                   multiple
                   style={{ display: "none" }}
                   onChange={handleFileSelect}
+                  disabled={!isSignedIn}
                 />
 
-                <button onClick={sendMessage} style={styles.button}>
+                <button
+                  onClick={sendMessage}
+                  style={styles.button}
+                  disabled={!isSignedIn}
+                >
                   Send
                 </button>
               </div>
@@ -604,6 +732,23 @@ export default function App() {
 
       <Footer />
     </div>
+  );
+}
+
+/* =========================
+   ROOT APP
+========================= */
+export default function App() {
+  return (
+    <>
+      <SignedOut>
+        <AuthScreen />
+      </SignedOut>
+
+      <SignedIn>
+        <ChatApp />
+      </SignedIn>
+    </>
   );
 }
 
