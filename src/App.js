@@ -221,6 +221,7 @@ export default function App() {
   const [dbError, setDbError] = useState("");
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [usage, setUsage] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -471,6 +472,28 @@ export default function App() {
     }
   }, [isSignedIn, supabase, loadChats, loadUsage]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+
+    if (!checkout) return;
+
+    if (checkout === "success") {
+      setDbError("");
+      if (isSignedIn && supabase) {
+        loadUsage();
+      }
+      alert("Payment successful. Premium will be activated shortly.");
+    }
+
+    if (checkout === "cancelled") {
+      alert("Checkout was cancelled.");
+    }
+
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, "", cleanUrl);
+  }, [isSignedIn, supabase, loadUsage]);
+
   const persistChat = useCallback(
     async (chat) => {
       if (!supabase || !isSignedIn || !chat) return;
@@ -579,12 +602,52 @@ export default function App() {
     [persistChat, isSignedIn]
   );
 
+  const openCheckout = async () => {
+    if (!isSignedIn) {
+      alert("Please log in first to upgrade.");
+      return;
+    }
+
+    if (!session) {
+      alert("Missing session. Please try again.");
+      return;
+    }
+
+    try {
+      setCheckoutLoading(true);
+
+      const token = await session.getToken();
+
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to start checkout");
+      }
+
+      window.location.href = data.url;
+    } catch (err) {
+      alert(err?.message || "Checkout failed");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!activeChat) return;
     if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
     if (hasReachedFreeLimit) {
-      alert("You have used all 20 free messages this month. Please upgrade to continue.");
+      alert(
+        "You have used all 20 free messages this month. Please upgrade to continue."
+      );
       return;
     }
 
@@ -927,11 +990,12 @@ export default function App() {
                     </div>
                     <button
                       style={styles.paywallButton}
-                      onClick={() =>
-                        alert("Next step: connect Stripe checkout for Premium.")
-                      }
+                      onClick={openCheckout}
+                      disabled={checkoutLoading}
                     >
-                      Upgrade to Premium
+                      {checkoutLoading
+                        ? "Redirecting..."
+                        : "Upgrade to Premium — €0.99/month"}
                     </button>
                   </div>
                 ) : null}
