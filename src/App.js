@@ -20,6 +20,9 @@ const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.REACT_APP_SUPABASE_PUBLISHABLE_KEY;
 
+const GUEST_LOGIN_PROMPT_AFTER = 5;
+const FREE_MESSAGE_LIMIT = 20;
+
 /* =========================
    HELPERS
 ========================= */
@@ -216,6 +219,8 @@ export default function App() {
   const [pendingUploads, setPendingUploads] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState("");
+  const [guestMessageCount, setGuestMessageCount] = useState(0);
+  const [usage, setUsage] = useState(null);
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -240,6 +245,90 @@ export default function App() {
     });
   }, [chats, sessionSearch]);
 
+  const shouldShowGuestLoginHint =
+    !isSignedIn && guestMessageCount >= GUEST_LOGIN_PROMPT_AFTER;
+
+  const hasReachedFreeLimit =
+    isSignedIn &&
+    usage &&
+    usage.plan !== "premium" &&
+    usage.message_count >= FREE_MESSAGE_LIMIT;
+
+  const ensureUsageRow = useCallback(async () => {
+    if (!supabase || !isSignedIn || !user?.id) return null;
+
+    const { data, error } = await supabase
+      .from("user_usage")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message || "Failed to load usage.");
+    }
+
+    if (data) {
+      return data;
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("user_usage")
+      .insert({
+        user_id: user.id,
+        message_count: 0,
+        plan: "free"
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      throw new Error(insertError.message || "Failed to create usage row.");
+    }
+
+    return inserted;
+  }, [supabase, isSignedIn, user?.id]);
+
+  const loadUsage = useCallback(async () => {
+    if (!supabase || !isSignedIn || !user?.id) return;
+
+    try {
+      const usageRow = await ensureUsageRow();
+      setUsage(usageRow);
+    } catch (err) {
+      setDbError(err.message || "Failed to load usage.");
+    }
+  }, [supabase, isSignedIn, user?.id, ensureUsageRow]);
+
+  const incrementUsage = useCallback(async () => {
+    if (!supabase || !isSignedIn || !user?.id) return;
+
+    const currentUsage = usage || (await ensureUsageRow());
+    if (!currentUsage) return;
+
+    if (currentUsage.plan === "premium") {
+      setUsage(currentUsage);
+      return;
+    }
+
+    const nextCount = (currentUsage.message_count || 0) + 1;
+
+    const { data, error } = await supabase
+      .from("user_usage")
+      .update({
+        message_count: nextCount,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message || "Failed to update usage.");
+    }
+
+    setUsage(data);
+  }, [supabase, isSignedIn, user?.id, usage, ensureUsageRow]);
+
   const loadChats = useCallback(async () => {
     if (!supabase || !isSignedIn) return;
 
@@ -262,7 +351,9 @@ export default function App() {
       setChats(safeChats);
       setActiveChatId(safeChats[0].id);
       setHasStarted(
-        safeChats.some((chat) => Array.isArray(chat.messages) && chat.messages.length > 0)
+        safeChats.some(
+          (chat) => Array.isArray(chat.messages) && chat.messages.length > 0
+        )
       );
       setDbReady(true);
       return;
@@ -367,6 +458,7 @@ export default function App() {
   useEffect(() => {
     if (isSignedIn && supabase) {
       loadChats();
+      loadUsage();
     } else {
       setChats([{ id: "guest-1", title: "New Chat", messages: [] }]);
       setActiveChatId("guest-1");
@@ -375,8 +467,9 @@ export default function App() {
       setDbError("");
       setPendingUploads([]);
       setSessionSearch("");
+      setUsage(null);
     }
-  }, [isSignedIn, supabase, loadChats]);
+  }, [isSignedIn, supabase, loadChats, loadUsage]);
 
   const persistChat = useCallback(
     async (chat) => {
@@ -488,13 +581,12 @@ export default function App() {
 
   const sendMessage = async () => {
     if (!activeChat) return;
+    if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
-    if (!isSignedIn) {
-      alert("Please log in to create and save chats.");
+    if (hasReachedFreeLimit) {
+      alert("You have used all 20 free messages this month. Please upgrade to continue.");
       return;
     }
-
-    if ((!input.trim() && pendingUploads.length === 0) || loading) return;
 
     if (!hasStarted) setHasStarted(true);
 
@@ -535,7 +627,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      if (updatedChat) {
+      if (updatedChat && isSignedIn) {
         await persistChat(updatedChat);
       }
 
@@ -544,6 +636,12 @@ export default function App() {
       }
 
       await handleUserMessage(userText, currentChatId, isFirstMessage);
+
+      if (isSignedIn) {
+        await incrementUsage();
+      } else {
+        setGuestMessageCount((prev) => prev + 1);
+      }
     } catch (err) {
       let erroredChat = null;
 
@@ -566,7 +664,7 @@ export default function App() {
         })
       );
 
-      if (erroredChat) {
+      if (erroredChat && isSignedIn) {
         try {
           await persistChat(erroredChat);
         } catch (_) {}
@@ -622,11 +720,6 @@ export default function App() {
   };
 
   const toggleRecording = () => {
-    if (!isSignedIn) {
-      alert("Please log in to use voice input.");
-      return;
-    }
-
     if (!recognitionRef.current) {
       alert("Speech recognition is not supported in this browser.");
       return;
@@ -640,11 +733,6 @@ export default function App() {
   };
 
   const handleFileSelect = (event) => {
-    if (!isSignedIn) {
-      alert("Please log in to upload files.");
-      return;
-    }
-
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
 
@@ -666,8 +754,6 @@ export default function App() {
   };
 
   const removePendingUpload = (indexToRemove) => {
-    if (!isSignedIn) return;
-
     setPendingUploads((prev) =>
       prev.filter((_, index) => index !== indexToRemove)
     );
@@ -728,7 +814,16 @@ export default function App() {
 
           {!isSignedIn ? (
             <div style={styles.infoBox}>
-              Log in to create, search, and save your chats.
+              Chat, voice input, and file upload are free to try. Log in to save
+              and search your chats.
+            </div>
+          ) : null}
+
+          {isSignedIn && usage ? (
+            <div style={styles.usageBox}>
+              {usage.plan === "premium"
+                ? "Premium active"
+                : `${usage.message_count} / ${FREE_MESSAGE_LIMIT} free messages used`}
             </div>
           ) : null}
 
@@ -807,6 +902,40 @@ export default function App() {
                   </div>
                 )}
 
+                {shouldShowGuestLoginHint ? (
+                  <div style={styles.funnelCard}>
+                    <div style={styles.funnelTitle}>
+                      Save your chats and unlock more free usage
+                    </div>
+                    <div style={styles.funnelText}>
+                      You have already tested EDMAI. Create a free account to
+                      save your chats and get {FREE_MESSAGE_LIMIT} free messages
+                      per month.
+                    </div>
+                    <SignInButton mode="modal">
+                      <button style={styles.funnelButton}>Create free account</button>
+                    </SignInButton>
+                  </div>
+                ) : null}
+
+                {hasReachedFreeLimit ? (
+                  <div style={styles.paywallCard}>
+                    <div style={styles.paywallTitle}>Free limit reached</div>
+                    <div style={styles.paywallText}>
+                      You have used all {FREE_MESSAGE_LIMIT} free messages this
+                      month. Upgrade to continue using saved chats.
+                    </div>
+                    <button
+                      style={styles.paywallButton}
+                      onClick={() =>
+                        alert("Next step: connect Stripe checkout for Premium.")
+                      }
+                    >
+                      Upgrade to Premium
+                    </button>
+                  </div>
+                ) : null}
+
                 <div ref={chatEndRef} />
               </div>
 
@@ -846,16 +975,11 @@ export default function App() {
                       autoFocus
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={
-                        isSignedIn
-                          ? "Type a message..."
-                          : "Login to start chatting..."
-                      }
+                      placeholder="Type a message..."
                       style={styles.input}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") sendMessage();
                       }}
-                      disabled={!isSignedIn}
                     />
 
                     <button
@@ -863,26 +987,20 @@ export default function App() {
                       style={{
                         ...styles.iconButton,
                         ...(isRecording ? styles.recordingButton : {}),
-                        ...(speechSupported ? {} : styles.disabledButton),
-                        ...(!isSignedIn ? styles.disabledButton : {})
+                        ...(speechSupported ? {} : styles.disabledButton)
                       }}
                       title="Voice input"
-                      disabled={!speechSupported || !isSignedIn}
+                      disabled={!speechSupported}
                     >
                       🎤
                     </button>
 
                     <button
                       onClick={() => {
-                        if (!isSignedIn) return;
                         fileInputRef.current?.click();
                       }}
-                      style={{
-                        ...styles.iconButton,
-                        ...(!isSignedIn ? styles.disabledButton : {})
-                      }}
+                      style={styles.iconButton}
                       title="Upload file"
-                      disabled={!isSignedIn}
                     >
                       📎
                     </button>
@@ -893,17 +1011,9 @@ export default function App() {
                       multiple
                       style={{ display: "none" }}
                       onChange={handleFileSelect}
-                      disabled={!isSignedIn}
                     />
 
-                    <button
-                      onClick={sendMessage}
-                      style={{
-                        ...styles.button,
-                        ...(!isSignedIn ? styles.disabledButton : {})
-                      }}
-                      disabled={!isSignedIn}
-                    >
+                    <button onClick={sendMessage} style={styles.button}>
                       Send
                     </button>
                   </div>
@@ -966,6 +1076,15 @@ const styles = {
     outline: "none",
     boxSizing: "border-box",
     background: "#fff"
+  },
+
+  usageBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#f9fafb",
+    color: "#374151",
+    fontSize: 12,
+    border: "1px solid #e5e7eb"
   },
 
   chatList: {
@@ -1161,5 +1280,69 @@ const styles = {
     justifyContent: "center",
     fontSize: 16,
     color: "#6b7280"
+  },
+
+  funnelCard: {
+    maxWidth: 700,
+    margin: "12px auto 0",
+    padding: 16,
+    borderRadius: 12,
+    border: "1px solid #bfdbfe",
+    background: "#eff6ff"
+  },
+
+  funnelTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#1e3a8a",
+    marginBottom: 6
+  },
+
+  funnelText: {
+    fontSize: 13,
+    color: "#1d4ed8",
+    marginBottom: 12
+  },
+
+  funnelButton: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid #1d4ed8",
+    background: "#1d4ed8",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 600
+  },
+
+  paywallCard: {
+    maxWidth: 700,
+    margin: "12px auto 0",
+    padding: 16,
+    borderRadius: 12,
+    border: "1px solid #fde68a",
+    background: "#fffbeb"
+  },
+
+  paywallTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#92400e",
+    marginBottom: 6
+  },
+
+  paywallText: {
+    fontSize: 13,
+    color: "#b45309",
+    marginBottom: 12
+  },
+
+  paywallButton: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid #d97706",
+    background: "#d97706",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 600
   }
 };
