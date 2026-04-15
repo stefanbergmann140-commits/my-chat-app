@@ -198,13 +198,13 @@ const footerStyles = {
    APP
 ========================= */
 export default function App() {
-  const { isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const { session } = useSession();
 
   const supabase = useMemo(() => {
-    if (!session || !isSignedIn) return null;
+    if (!isLoaded || !session || !isSignedIn) return null;
     return createClerkSupabaseClient(session);
-  }, [session, isSignedIn]);
+  }, [isLoaded, session, isSignedIn]);
 
   const [chats, setChats] = useState([
     { id: "guest-1", title: "New Chat", messages: [] }
@@ -457,6 +457,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isLoaded) return;
+
     if (isSignedIn && supabase) {
       loadChats();
       loadUsage();
@@ -470,7 +472,7 @@ export default function App() {
       setSessionSearch("");
       setUsage(null);
     }
-  }, [isSignedIn, supabase, loadChats, loadUsage]);
+  }, [isLoaded, isSignedIn, supabase, loadChats, loadUsage]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -745,10 +747,7 @@ export default function App() {
   };
 
   const createNewChat = async () => {
-    if (!isSignedIn || !supabase) {
-      alert("Please log in to create a new chat.");
-      return;
-    }
+    if (!isLoaded || !isSignedIn || !supabase) return;
 
     const newChat = {
       id: String(Date.now()),
@@ -837,7 +836,8 @@ export default function App() {
     setActiveChatId(chatId);
   };
 
-  const showDbLoading = isSignedIn && !dbReady && !dbError;
+  const showDbLoading = isLoaded && isSignedIn && !dbReady && !dbError;
+  const canUseSavedFeatures = isLoaded && isSignedIn && !!supabase;
 
   return (
     <div style={styles.app}>
@@ -846,13 +846,16 @@ export default function App() {
       <div style={styles.body}>
         <div style={styles.sidebar}>
           <button
-            onClick={createNewChat}
+            onClick={() => {
+              if (!canUseSavedFeatures) return;
+              createNewChat();
+            }}
             style={{
               ...styles.newChat,
-              opacity: isSignedIn ? 1 : 0.5,
-              cursor: isSignedIn ? "pointer" : "not-allowed"
+              opacity: canUseSavedFeatures ? 1 : 0.5,
+              cursor: canUseSavedFeatures ? "pointer" : "not-allowed"
             }}
-            disabled={!isSignedIn}
+            disabled={!canUseSavedFeatures}
           >
             + New Chat
           </button>
@@ -861,18 +864,20 @@ export default function App() {
             type="text"
             value={sessionSearch}
             onChange={(e) => {
-              if (!isSignedIn) return;
+              if (!canUseSavedFeatures) return;
               setSessionSearch(e.target.value);
             }}
             placeholder={
-              isSignedIn ? "Search sessions..." : "Login to search sessions..."
+              canUseSavedFeatures
+                ? "Search sessions..."
+                : "Login to search sessions..."
             }
             style={{
               ...styles.searchInput,
-              opacity: isSignedIn ? 1 : 0.5,
-              cursor: isSignedIn ? "text" : "not-allowed"
+              opacity: canUseSavedFeatures ? 1 : 0.5,
+              cursor: canUseSavedFeatures ? "text" : "not-allowed"
             }}
-            disabled={!isSignedIn}
+            disabled={!canUseSavedFeatures}
           />
 
           {!isSignedIn ? (
@@ -902,8 +907,8 @@ export default function App() {
                     ...styles.chatItem,
                     background:
                       chat.id === activeChatId ? "#e5e7eb" : "transparent",
-                    cursor: isSignedIn ? "pointer" : "not-allowed",
-                    opacity: isSignedIn ? 1 : 0.6
+                    cursor: canUseSavedFeatures ? "pointer" : "not-allowed",
+                    opacity: canUseSavedFeatures ? 1 : 0.6
                   }}
                 >
                   <div style={styles.chatTitle}>{chat.title}</div>
@@ -976,7 +981,9 @@ export default function App() {
                       per month.
                     </div>
                     <SignInButton mode="modal">
-                      <button style={styles.funnelButton}>Create free account</button>
+                      <button style={styles.funnelButton}>
+                        Create free account
+                      </button>
                     </SignInButton>
                   </div>
                 ) : null}
