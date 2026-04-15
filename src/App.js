@@ -362,20 +362,16 @@ export default function App() {
 
     const starterChat = {
       id: String(Date.now()),
+      user_id: user?.id || "",
       title: "New Chat",
       messages: [],
-      user_id: user?.id || "",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     const { data: inserted, error: insertError } = await supabase
       .from("chats")
-      .insert({
-        id: starterChat.id,
-        title: starterChat.title,
-        messages: starterChat.messages
-      })
+      .insert(starterChat)
       .select()
       .single();
 
@@ -502,6 +498,7 @@ export default function App() {
 
       const payload = {
         id: chat.id,
+        user_id: chat.user_id || user?.id || null,
         title: chat.title || "New Chat",
         messages: chat.messages || [],
         updated_at: new Date().toISOString()
@@ -519,7 +516,7 @@ export default function App() {
 
       return data;
     },
-    [supabase, isSignedIn]
+    [supabase, isSignedIn, user?.id]
   );
 
   const handleUserMessage = useCallback(
@@ -677,6 +674,7 @@ export default function App() {
 
         updatedChat = {
           ...chat,
+          user_id: chat.user_id || user?.id || chat.user_id,
           messages: [
             ...chat.messages,
             ...(input.trim() ? [{ role: "user", text: userText }] : []),
@@ -747,10 +745,11 @@ export default function App() {
   };
 
   const createNewChat = async () => {
-    if (!isLoaded || !isSignedIn || !supabase) return;
+    if (!isLoaded || !isSignedIn || !supabase || !user?.id) return;
 
     const newChat = {
       id: String(Date.now()),
+      user_id: user.id,
       title: "New Chat",
       messages: [],
       updated_at: new Date().toISOString()
