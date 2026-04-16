@@ -163,20 +163,278 @@ const headerStyles = {
    FOOTER
 ========================= */
 function Footer() {
+  const [activeSection, setActiveSection] = useState(null);
+
+  const toggleSection = (section) => {
+    setActiveSection((prev) => (prev === section ? null : section));
+  };
+
   return (
     <footer style={footerStyles.footer}>
-      <div style={footerStyles.links}>
-        <a href="/imprint" style={footerStyles.link}>
-          Imprint
-        </a>
+      <div style={footerStyles.container}>
+        <div style={footerStyles.links}>
+          <button
+            type="button"
+            onClick={() => toggleSection("support")}
+            style={footerStyles.linkButton}
+          >
+            Support
+          </button>
 
-        <a href="/privacy" style={footerStyles.link}>
-          Privacy
-        </a>
+          <button
+            type="button"
+            onClick={() => toggleSection("about")}
+            style={footerStyles.linkButton}
+          >
+            About us
+          </button>
 
-        <a href="/legal" style={footerStyles.link}>
-          Legal Policy
-        </a>
+          <button
+            type="button"
+            onClick={() => toggleSection("privacy")}
+            style={footerStyles.linkButton}
+          >
+            Privacy Policy
+          </button>
+
+          <button
+            type="button"
+            onClick={() => toggleSection("legal")}
+            style={footerStyles.linkButton}
+          >
+            Legal Notice
+          </button>
+        </div>
+
+        {activeSection && (
+          <div style={footerStyles.panel}>
+            {activeSection === "support" && (
+              <div>
+                <h3 style={footerStyles.title}>Support</h3>
+                <p style={footerStyles.text}>info@edmai.net</p>
+              </div>
+            )}
+
+            {activeSection === "about" && (
+              <div>
+                <h3 style={footerStyles.title}>About us</h3>
+                <p style={footerStyles.text}></p>
+              </div>
+            )}
+
+            {activeSection === "privacy" && (
+              <div>
+                <h3 style={footerStyles.title}>Privacy Policy</h3>
+
+                <p style={footerStyles.text}>
+                  <strong>1. Introduction</strong>
+                  <br />
+                  This Privacy Policy explains how we collect, use, and protect
+                  your personal data when you use our website and chat-based
+                  service.
+                  <br />
+                  By using our service, you agree to the collection and use of
+                  information in accordance with this policy.
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>2. Data Controller</strong>
+                  <br />
+                  The data controller responsible for this website is:
+                  <br />
+                  Edmai
+                  <br />
+                  An der Schützenwiese 5, 40231 Düsseldorf
+                  <br />
+                  Email: info@edmai.net
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>3. Information We Collect</strong>
+                  <br />
+                  We may collect the following types of personal data:
+                  <br />
+                  Email address (for account registration and login)
+                  <br />
+                  Account information (such as user ID)
+                  <br />
+                  Chat messages and inputs sent to the AI chat agent
+                  <br />
+                  Usage data (such as browser type, device information, and
+                  interaction logs)
+                  <br />
+                  IP address and approximate location (for security and analytics
+                  purposes)
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>4. How We Use Your Data</strong>
+                  <br />
+                  We use your data for the following purposes:
+                  <br />
+                  To provide and maintain the chat service
+                  <br />
+                  To allow user authentication and account access
+                  <br />
+                  To generate AI-based responses in the chat
+                  <br />
+                  To improve and optimize our service
+                  <br />
+                  To ensure security and prevent misuse
+                  <br />
+                  To comply with legal obligations
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>5. AI Chat Processing</strong>
+                  <br />
+                  Our platform uses an AI-based chat system.
+                  <br />
+                  When you send messages to the chat agent:
+                  <br />
+                  Your input is processed by automated systems to generate
+                  responses
+                  <br />
+                  Messages may be temporarily stored to provide context and
+                  improve interaction quality
+                  <br />
+                  You should avoid entering sensitive personal data (such as
+                  health, financial, or identity-related information)
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>6. Legal Basis for Processing (GDPR)</strong>
+                  <br />
+                  We process your personal data based on the following legal
+                  grounds:
+                  <br />
+                  Contract: to provide access to the service
+                  <br />
+                  Consent: where you have given permission (e.g., cookies)
+                  <br />
+                  Legitimate interest: for security, improvement, and fraud
+                  prevention
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>7. Cookies and Tracking</strong>
+                  <br />
+                  We may use cookies and similar technologies to:
+                  <br />
+                  Enable login sessions
+                  <br />
+                  Improve user experience
+                  <br />
+                  Analyze website usage
+                  <br />
+                  You can manage or disable cookies through your browser settings
+                  or via our cookie banner (if applicable).
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>8. Data Sharing</strong>
+                  <br />
+                  We may share your data with trusted third-party providers,
+                  including:
+                  <br />
+                  Hosting providers
+                  <br />
+                  Authentication services
+                  <br />
+                  AI processing providers (for generating chat responses)
+                  <br />
+                  Analytics tools (if used)
+                  <br />
+                  These providers are only allowed to process data on our behalf
+                  and are required to comply with data protection regulations.
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>9. International Data Transfers</strong>
+                  <br />
+                  Some of our service providers may be located outside the
+                  European Union (e.g., in the United States).
+                  <br />
+                  In such cases, we ensure appropriate safeguards such as
+                  Standard Contractual Clauses (SCCs) to protect your data.
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>10. Data Retention</strong>
+                  <br />
+                  We retain personal data only as long as necessary for the
+                  purposes described in this policy:
+                  <br />
+                  Account data is stored as long as the account is active
+                  <br />
+                  Chat logs may be stored temporarily to improve system
+                  performance
+                  <br />
+                  Logs may be deleted or anonymized after a defined period
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>11. Your Rights (GDPR)</strong>
+                  <br />
+                  You have the following rights regarding your personal data:
+                  <br />
+                  Right to access your data
+                  <br />
+                  Right to rectification of incorrect data
+                  <br />
+                  Right to deletion (“right to be forgotten”)
+                  <br />
+                  Right to restrict processing
+                  <br />
+                  Right to data portability
+                  <br />
+                  Right to object to processing
+                  <br />
+                  To exercise these rights, contact us at: info@edmai.net
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>12. Security</strong>
+                  <br />
+                  We take appropriate technical and organizational measures to
+                  protect your data against unauthorized access, loss, or misuse.
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>13. Changes to This Privacy Policy</strong>
+                  <br />
+                  We may update this Privacy Policy from time to time. Updates
+                  will be posted on this page with a revised “last updated” date.
+                </p>
+
+                <p style={footerStyles.text}>
+                  <strong>14. Contact</strong>
+                  <br />
+                  If you have any questions about this Privacy Policy or your
+                  data, please contact us:
+                  <br />
+                  Email: info@edmai.net
+                </p>
+              </div>
+            )}
+
+            {activeSection === "legal" && (
+              <div>
+                <h3 style={footerStyles.title}>Legal Notice</h3>
+                <p style={footerStyles.text}>
+                  EDMAI
+                  <br />
+                  An der Schützenwiese 5
+                  <br />
+                  40231 Düsseldorf
+                  <br />
+                  <br />
+                  info@edmai.net
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </footer>
   );
@@ -184,26 +442,59 @@ function Footer() {
 
 const footerStyles = {
   footer: {
-    height: 60,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
     background: "#000",
-    borderTop: "1px solid #111"
+    borderTop: "1px solid #111",
+    padding: "14px 20px"
+  },
+
+  container: {
+    maxWidth: 1100,
+    margin: "0 auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 14
   },
 
   links: {
     display: "flex",
     gap: 25,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    flexWrap: "wrap"
   },
 
-  link: {
+  linkButton: {
     color: "#ffffff",
+    background: "transparent",
+    border: "none",
     textDecoration: "none",
     fontSize: 12,
-    opacity: 1
+    opacity: 1,
+    cursor: "pointer",
+    padding: 0
+  },
+
+  panel: {
+    background: "#0f0f0f",
+    border: "1px solid #1f1f1f",
+    borderRadius: 10,
+    padding: 16,
+    maxHeight: 260,
+    overflowY: "auto"
+  },
+
+  title: {
+    color: "#fff",
+    fontSize: 16,
+    marginTop: 0,
+    marginBottom: 12
+  },
+
+  text: {
+    color: "#d1d5db",
+    fontSize: 13,
+    lineHeight: 1.6,
+    margin: "0 0 14px 0"
   }
 };
 
@@ -1119,7 +1410,7 @@ const styles = {
   app: {
     display: "flex",
     flexDirection: "column",
-    height: "100vh",
+    minHeight: "100vh",
     fontFamily: "system-ui",
     background: "#ffffff"
   },
