@@ -1058,7 +1058,7 @@ export default function App() {
                       autoFocus
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Type a message..."
+                      placeholder="What problem are you facing right now producing EDM?"
                       style={styles.input}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") sendMessage();
