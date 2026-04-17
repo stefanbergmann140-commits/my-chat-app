@@ -21,7 +21,6 @@ const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.REACT_APP_SUPABASE_PUBLISHABLE_KEY;
 
-// Muss exakt zum Clerk JWT Template Namen passen
 const SUPABASE_JWT_TEMPLATE = "supabase";
 
 const GUEST_LOGIN_PROMPT_AFTER = 5;
@@ -73,7 +72,6 @@ function createClerkSupabaseClient(session) {
 
   return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     accessToken: async () => {
-      // Wichtig: nicht session.getToken() ohne Template
       return (
         (await session?.getToken({ template: SUPABASE_JWT_TEMPLATE })) ?? null
       );
@@ -585,7 +583,6 @@ export default function App() {
     const { data: inserted, error: insertError } = await supabase
       .from("user_usage")
       .insert({
-        user_id: user.id,
         message_count: 0,
         plan: "free"
       })
@@ -672,7 +669,6 @@ export default function App() {
 
     const starterChat = {
       id: String(Date.now()),
-      user_id: user?.id || "",
       title: "New Chat",
       messages: [],
       created_at: new Date().toISOString(),
@@ -695,7 +691,7 @@ export default function App() {
     setActiveChatId(inserted.id);
     setHasStarted(false);
     setDbReady(true);
-  }, [supabase, isSignedIn, user?.id]);
+  }, [supabase, isSignedIn]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -808,7 +804,6 @@ export default function App() {
 
       const payload = {
         id: chat.id,
-        user_id: chat.user_id || user?.id || null,
         title: chat.title || "New Chat",
         messages: chat.messages || [],
         updated_at: new Date().toISOString()
@@ -826,7 +821,7 @@ export default function App() {
 
       return data;
     },
-    [supabase, isSignedIn, user?.id]
+    [supabase, isSignedIn]
   );
 
   const handleUserMessage = useCallback(
@@ -925,7 +920,6 @@ export default function App() {
     try {
       setCheckoutLoading(true);
 
-      // Das hier nur ändern, wenn dein Backend ebenfalls ein spezielles Clerk-Template erwartet.
       const token = await session.getToken();
 
       const res = await fetch("/api/create-checkout-session", {
@@ -985,7 +979,6 @@ export default function App() {
 
         updatedChat = {
           ...chat,
-          user_id: chat.user_id || user?.id || chat.user_id,
           messages: [
             ...chat.messages,
             ...(input.trim() ? [{ role: "user", text: userText }] : []),
@@ -993,4 +986,736 @@ export default function App() {
           ]
         };
 
-        return updatedChat
+        return updatedChat;
+      })
+    );
+
+    setInput("");
+    setLoading(true);
+
+    try {
+      if (updatedChat && isSignedIn) {
+        await persistChat(updatedChat);
+      }
+
+      if (pendingUploads.length > 0) {
+        await uploadFilesToFlowise(pendingUploads, currentChatId);
+      }
+
+      await handleUserMessage(userText, currentChatId, isFirstMessage);
+
+      if (isSignedIn) {
+        await incrementUsage();
+      } else {
+        setGuestMessageCount((prev) => prev + 1);
+      }
+    } catch (err) {
+      let erroredChat = null;
+
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (chat.id !== currentChatId) return chat;
+
+          erroredChat = {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                role: "ai",
+                text: `Error${err?.message ? `: ${err.message}` : ""}`
+              }
+            ]
+          };
+
+          return erroredChat;
+        })
+      );
+
+      if (erroredChat && isSignedIn) {
+        try {
+          await persistChat(erroredChat);
+        } catch (_) {}
+      }
+    } finally {
+      setPendingUploads([]);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const createNewChat = async () => {
+    if (!isLoaded || !isSignedIn || !supabase) return;
+
+    const newChat = {
+      id: String(Date.now()),
+      title: "New Chat",
+      messages: [],
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("chats")
+        .insert(newChat)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message || "Failed to create chat.");
+      }
+
+      setChats((prev) => [data, ...prev]);
+      setActiveChatId(data.id);
+      setHasStarted(false);
+      setInput("");
+      setPendingUploads([]);
+
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+    } catch (err) {
+      setDbError(err.message || "Failed to create chat.");
+    }
+  };
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    setPendingUploads((prev) => {
+      const existingKeys = new Set(prev.map((f) => `${f.name}-${f.size}`));
+
+      const nextFiles = files.filter(
+        (file) => !existingKeys.has(`${file.name}-${file.size}`)
+      );
+
+      return [...prev, ...nextFiles];
+    });
+
+    if (!hasStarted) setHasStarted(true);
+
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const removePendingUpload = (indexToRemove) => {
+    setPendingUploads((prev) =>
+      prev.filter((_, index) => index !== indexToRemove)
+    );
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    inputRef.current?.focus();
+  };
+
+  const openChat = (chatId) => {
+    if (!isSignedIn) {
+      alert("Please log in to access saved chats.");
+      return;
+    }
+
+    setActiveChatId(chatId);
+  };
+
+  const showDbLoading = isLoaded && isSignedIn && !dbReady && !dbError;
+  const canUseSavedFeatures = isLoaded && isSignedIn && !!supabase;
+
+  return (
+    <div style={styles.app}>
+      <Header isSignedIn={isSignedIn} />
+
+      <div style={styles.body}>
+        <div style={styles.sidebar}>
+          <button
+            onClick={() => {
+              if (!canUseSavedFeatures) return;
+              createNewChat();
+            }}
+            style={{
+              ...styles.newChat,
+              opacity: canUseSavedFeatures ? 1 : 0.5,
+              cursor: canUseSavedFeatures ? "pointer" : "not-allowed"
+            }}
+            disabled={!canUseSavedFeatures}
+          >
+            + New Chat
+          </button>
+
+          <input
+            type="text"
+            value={sessionSearch}
+            onChange={(e) => {
+              if (!canUseSavedFeatures) return;
+              setSessionSearch(e.target.value);
+            }}
+            placeholder={
+              canUseSavedFeatures
+                ? "Search sessions..."
+                : "Login to search sessions..."
+            }
+            style={{
+              ...styles.searchInput,
+              opacity: canUseSavedFeatures ? 1 : 0.5,
+              cursor: canUseSavedFeatures ? "text" : "not-allowed"
+            }}
+            disabled={!canUseSavedFeatures}
+          />
+
+          {!isSignedIn ? (
+            <div style={styles.infoBox}>
+              Chat, voice input, and file upload are free to try. Log in to save
+              and search your chats.
+            </div>
+          ) : null}
+
+          {isSignedIn && usage ? (
+            <div style={styles.usageBox}>
+              {usage.plan === "premium"
+                ? "Premium active"
+                : `${usage.message_count} / ${FREE_MESSAGE_LIMIT} free messages used`}
+            </div>
+          ) : null}
+
+          {dbError ? <div style={styles.errorBox}>{dbError}</div> : null}
+
+          <div style={styles.chatList}>
+            {filteredChats.length > 0 ? (
+              filteredChats.map((chat) => (
+                <div
+                  key={chat.id}
+                  onClick={() => openChat(chat.id)}
+                  style={{
+                    ...styles.chatItem,
+                    background:
+                      chat.id === activeChatId ? "#e5e7eb" : "transparent",
+                    cursor: canUseSavedFeatures ? "pointer" : "not-allowed",
+                    opacity: canUseSavedFeatures ? 1 : 0.6
+                  }}
+                >
+                  <div style={styles.chatTitle}>{chat.title}</div>
+
+                  {chat.messages.length > 0 && (
+                    <div style={styles.chatPreview}>
+                      {chat.messages[chat.messages.length - 1].text}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div style={styles.noResults}>No sessions found</div>
+            )}
+          </div>
+        </div>
+
+        <div style={styles.main}>
+          {showDbLoading ? (
+            <div style={styles.centerState}>Loading your chats...</div>
+          ) : (
+            <>
+              <div
+                style={{
+                  ...styles.chatArea,
+                  flex: hasStarted ? 1 : "unset",
+                  maxHeight: hasStarted ? "none" : 300,
+                  overflowY: hasStarted ? "auto" : "hidden"
+                }}
+              >
+                {activeChat?.messages.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent:
+                        m.role === "user" ? "flex-end" : "flex-start",
+                      padding: 10
+                    }}
+                  >
+                    <div
+                      style={{
+                        ...styles.bubble,
+                        ...(m.role === "user"
+                          ? styles.userBubble
+                          : styles.aiBubble)
+                      }}
+                    >
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.text}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                ))}
+
+                {loading && (
+                  <div style={{ padding: 10, opacity: 0.6 }}>
+                    Bot is typing...
+                  </div>
+                )}
+
+                {shouldShowGuestLoginHint ? (
+                  <div style={styles.funnelCard}>
+                    <div style={styles.funnelTitle}>
+                      Save your chats and unlock more free usage
+                    </div>
+                    <div style={styles.funnelText}>
+                      You have already tested EDMAI. Create a free account to
+                      save your chats and get {FREE_MESSAGE_LIMIT} free messages
+                      per month.
+                    </div>
+                    <SignInButton mode="modal">
+                      <button style={styles.funnelButton}>
+                        Create free account
+                      </button>
+                    </SignInButton>
+                  </div>
+                ) : null}
+
+                {hasReachedFreeLimit ? (
+                  <div style={styles.paywallCard}>
+                    <div style={styles.paywallTitle}>Free limit reached</div>
+                    <div style={styles.paywallText}>
+                      You have used all {FREE_MESSAGE_LIMIT} free messages this
+                      month. Upgrade to continue using saved chats.
+                    </div>
+                    <button
+                      style={styles.paywallButton}
+                      onClick={openCheckout}
+                      disabled={checkoutLoading}
+                    >
+                      {checkoutLoading
+                        ? "Redirecting..."
+                        : "Upgrade to Premium — €0.99/month"}
+                    </button>
+                  </div>
+                ) : null}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              <div
+                style={{
+                  ...styles.inputWrapper,
+                  justifyContent: "center",
+                  alignItems: hasStarted ? "flex-end" : "center",
+                  flex: hasStarted ? "unset" : 1
+                }}
+              >
+                <div style={styles.composerWrap}>
+                  {pendingUploads.length > 0 && (
+                    <div style={styles.uploadPreviewBar}>
+                      {pendingUploads.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${index}`}
+                          style={styles.uploadChip}
+                        >
+                          <span style={styles.uploadChipText}>{file.name}</span>
+
+                          <button
+                            onClick={() => removePendingUpload(index)}
+                            style={styles.uploadChipRemove}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={styles.inputBar}>
+                    <input
+                      ref={inputRef}
+                      autoFocus
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="What problem are you facing right now producing EDM?"
+                      style={styles.input}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") sendMessage();
+                      }}
+                    />
+
+                    <button
+                      onClick={toggleRecording}
+                      style={{
+                        ...styles.iconButton,
+                        ...(isRecording ? styles.recordingButton : {}),
+                        ...(speechSupported ? {} : styles.disabledButton)
+                      }}
+                      title="Voice input"
+                      disabled={!speechSupported}
+                    >
+                      🎤
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                      }}
+                      style={styles.iconButton}
+                      title="Upload file"
+                    >
+                      📎
+                    </button>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={handleFileSelect}
+                    />
+
+                    <button onClick={sendMessage} style={styles.button}>
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+}
+
+/* =========================
+   STYLES
+========================= */
+const styles = {
+  app: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100vh",
+    fontFamily: "system-ui",
+    background: "#ffffff"
+  },
+
+  body: {
+    display: "flex",
+    flex: 1,
+    overflow: "hidden"
+  },
+
+  sidebar: {
+    width: 280,
+    borderRight: "1px solid #e5e7eb",
+    padding: 12,
+    background: "#f7f7f8",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+  },
+
+  newChat: {
+    width: "100%",
+    padding: 10,
+    marginBottom: 2,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer",
+    fontWeight: 600
+  },
+
+  searchInput: {
+    width: "100%",
+    padding: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff"
+  },
+
+  usageBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#f9fafb",
+    color: "#374151",
+    fontSize: 12,
+    border: "1px solid #e5e7eb"
+  },
+
+  chatList: {
+    overflowY: "auto",
+    flex: 1,
+    paddingRight: 4
+  },
+
+  chatItem: {
+    padding: 10,
+    borderRadius: 6,
+    cursor: "pointer",
+    marginBottom: 6,
+    border: "1px solid transparent"
+  },
+
+  chatTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#111827",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+
+  chatPreview: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+
+  noResults: {
+    fontSize: 13,
+    color: "#6b7280",
+    padding: 10
+  },
+
+  main: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    minWidth: 0
+  },
+
+  chatArea: {
+    padding: 10
+  },
+
+  bubble: {
+    maxWidth: 700,
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    wordBreak: "break-word"
+  },
+
+  userBubble: {
+    background: "#f3f4f6"
+  },
+
+  aiBubble: {
+    background: "#fff"
+  },
+
+  inputWrapper: {
+    display: "flex",
+    padding: 20
+  },
+
+  composerWrap: {
+    width: "100%",
+    maxWidth: 900,
+    margin: "0 auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+  },
+
+  uploadPreviewBar: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    padding: 10,
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    background: "#fff"
+  },
+
+  uploadChip: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: "#f3f4f6",
+    border: "1px solid #d1d5db",
+    maxWidth: "100%"
+  },
+
+  uploadChipText: {
+    fontSize: 12,
+    color: "#111827",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: 220
+  },
+
+  uploadChipRemove: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 16,
+    lineHeight: 1,
+    color: "#6b7280",
+    padding: 0
+  },
+
+  inputBar: {
+    display: "flex",
+    gap: 10,
+    padding: 10,
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    background: "#fff",
+    width: "100%",
+    alignItems: "center"
+  },
+
+  input: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    outline: "none"
+  },
+
+  button: {
+    padding: "10px 14px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#f3f4f6",
+    cursor: "pointer",
+    fontWeight: 600
+  },
+
+  iconButton: {
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer",
+    fontSize: 16,
+    minWidth: 44
+  },
+
+  recordingButton: {
+    background: "#fee2e2",
+    border: "1px solid #ef4444"
+  },
+
+  disabledButton: {
+    opacity: 0.5,
+    cursor: "not-allowed"
+  },
+
+  errorBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#fef2f2",
+    color: "#991b1b",
+    fontSize: 12,
+    border: "1px solid #fecaca"
+  },
+
+  infoBox: {
+    padding: 10,
+    borderRadius: 8,
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    fontSize: 12,
+    border: "1px solid #bfdbfe"
+  },
+
+  centerState: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 16,
+    color: "#6b7280"
+  },
+
+  funnelCard: {
+    maxWidth: 700,
+    margin: "12px auto 0",
+    padding: 16,
+    borderRadius: 12,
+    border: "1px solid #bfdbfe",
+    background: "#eff6ff"
+  },
+
+  funnelTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#1e3a8a",
+    marginBottom: 6
+  },
+
+  funnelText: {
+    fontSize: 13,
+    color: "#1d4ed8",
+    marginBottom: 12
+  },
+
+  funnelButton: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid #1d4ed8",
+    background: "#1d4ed8",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 600
+  },
+
+  paywallCard: {
+    maxWidth: 700,
+    margin: "12px auto 0",
+    padding: 16,
+    borderRadius: 12,
+    border: "1px solid #fde68a",
+    background: "#fffbeb"
+  },
+
+  paywallTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#92400e",
+    marginBottom: 6
+  },
+
+  paywallText: {
+    fontSize: 13,
+    color: "#b45309",
+    marginBottom: 12
+  },
+
+  paywallButton: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid #d97706",
+    background: "#d97706",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 600
+  }
+};
