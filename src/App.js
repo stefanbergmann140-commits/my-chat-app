@@ -45,20 +45,47 @@ function createMessageId() {
 
 function parseSSEEvent(eventBlock) {
   const lines = eventBlock.split("\n");
-  let event = "message";
+  let explicitEvent = null;
   const dataLines = [];
 
   for (const line of lines) {
     if (line.startsWith("event:")) {
-      event = line.slice(6).trim();
+      explicitEvent = line.slice(6).trim();
     } else if (line.startsWith("data:")) {
       dataLines.push(line.slice(5).trimStart());
     }
   }
 
+  const rawData = dataLines.join("\n").trim();
+
+  if (!rawData) {
+    return {
+      event: explicitEvent || "message",
+      data: ""
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawData);
+
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.event === "string"
+    ) {
+      return {
+        event: parsed.event,
+        data:
+          typeof parsed.data === "string"
+            ? parsed.data
+            : JSON.stringify(parsed.data ?? "")
+      };
+    }
+  } catch (_) {}
+
   return {
-    event,
-    data: dataLines.join("\n")
+    event: explicitEvent || "token",
+    data: rawData
   };
 }
 
@@ -874,10 +901,11 @@ export default function App() {
           throw new Error(errText || "Prediction request failed");
         }
 
-        if (!res.body) {
+        const contentType = res.headers.get("content-type") || "";
+
+        if (!contentType.includes("text/event-stream") || !res.body) {
           const data = await res.json();
-          const aiText = data.text || data.answer || "No response";
-          fullText = aiText;
+          const aiText = data.text || data.answer || data.result || "No response";
 
           let updatedChat = null;
 
@@ -936,13 +964,16 @@ export default function App() {
 
           const { event, data } = parseSSEEvent(eventBlock);
 
-          if (event === "token") {
+          if (!data && event !== "end") return;
+          if (event === "start") return;
+
+          if (event === "token" || event === "message") {
             fullText += data;
             applyPartialText(fullText);
             return;
           }
 
-          if (event === "metadata") {
+          if (event === "metadata" || event === "sourceDocuments") {
             try {
               finalMetadata = JSON.parse(data);
             } catch (_) {
@@ -953,6 +984,10 @@ export default function App() {
 
           if (event === "error") {
             throw new Error(data || "Streaming error");
+          }
+
+          if (event === "end") {
+            return;
           }
         };
 
@@ -971,9 +1006,13 @@ export default function App() {
           }
         }
 
+        buffer += decoder.decode();
+
         if (buffer.trim()) {
           processEventBlock(buffer);
         }
+
+        const finalText = fullText.trim() || "No response";
 
         let updatedChat = null;
 
@@ -987,7 +1026,7 @@ export default function App() {
                 message.id === aiMessageId
                   ? {
                       ...message,
-                      text: fullText || "No response",
+                      text: finalText,
                       metadata: finalMetadata || message.metadata
                     }
                   : message
@@ -1154,6 +1193,8 @@ export default function App() {
       if (pendingUploads.length > 0) {
         await uploadFilesToFlowise(pendingUploads, currentChatId);
       }
+
+      setLoading(false);
 
       await handleUserMessage(
         userText,
