@@ -39,6 +39,29 @@ function getAuthHeaders(extra = {}) {
   return headers;
 }
 
+function createMessageId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function parseSSEEvent(eventBlock) {
+  const lines = eventBlock.split("\n");
+  let event = "message";
+  const dataLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  return {
+    event,
+    data: dataLines.join("\n")
+  };
+}
+
 async function uploadFilesToFlowise(files, chatId) {
   const formData = new FormData();
 
@@ -825,18 +848,23 @@ export default function App() {
   );
 
   const handleUserMessage = useCallback(
-    async (text, currentChatId, isFirstMessage) => {
+    async (text, currentChatId, isFirstMessage, aiMessageId) => {
+      let fullText = "";
+      let finalMetadata = null;
+
       try {
         const res = await fetch(
           `${FLOWISE_BASE_URL}/prediction/${CHATFLOW_ID}`,
           {
             method: "POST",
             headers: getAuthHeaders({
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              Accept: "text/event-stream"
             }),
             body: JSON.stringify({
               question: text,
-              chatId: currentChatId
+              chatId: currentChatId,
+              streaming: true
             })
           }
         );
@@ -846,8 +874,106 @@ export default function App() {
           throw new Error(errText || "Prediction request failed");
         }
 
-        const data = await res.json();
-        const aiText = data.text || data.answer || "No response";
+        if (!res.body) {
+          const data = await res.json();
+          const aiText = data.text || data.answer || "No response";
+          fullText = aiText;
+
+          let updatedChat = null;
+
+          setChats((prev) =>
+            prev.map((chat) => {
+              if (chat.id !== currentChatId) return chat;
+
+              updatedChat = {
+                ...chat,
+                messages: chat.messages.map((message) =>
+                  message.id === aiMessageId
+                    ? { ...message, text: aiText }
+                    : message
+                ),
+                title: isFirstMessage
+                  ? text.length > 30
+                    ? `${text.slice(0, 30)}...`
+                    : text
+                  : chat.title
+              };
+
+              return updatedChat;
+            })
+          );
+
+          if (updatedChat && isSignedIn) {
+            await persistChat(updatedChat);
+          }
+
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        const applyPartialText = (partialText) => {
+          setChats((prev) =>
+            prev.map((chat) => {
+              if (chat.id !== currentChatId) return chat;
+
+              return {
+                ...chat,
+                messages: chat.messages.map((message) =>
+                  message.id === aiMessageId
+                    ? { ...message, text: partialText }
+                    : message
+                )
+              };
+            })
+          );
+        };
+
+        const processEventBlock = (eventBlock) => {
+          if (!eventBlock.trim()) return;
+
+          const { event, data } = parseSSEEvent(eventBlock);
+
+          if (event === "token") {
+            fullText += data;
+            applyPartialText(fullText);
+            return;
+          }
+
+          if (event === "metadata") {
+            try {
+              finalMetadata = JSON.parse(data);
+            } catch (_) {
+              finalMetadata = data;
+            }
+            return;
+          }
+
+          if (event === "error") {
+            throw new Error(data || "Streaming error");
+          }
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          const eventBlocks = buffer.split("\n\n");
+          buffer = eventBlocks.pop() || "";
+
+          for (const block of eventBlocks) {
+            processEventBlock(block);
+          }
+        }
+
+        if (buffer.trim()) {
+          processEventBlock(buffer);
+        }
 
         let updatedChat = null;
 
@@ -857,10 +983,18 @@ export default function App() {
 
             updatedChat = {
               ...chat,
-              messages: [...chat.messages, { role: "ai", text: aiText }],
+              messages: chat.messages.map((message) =>
+                message.id === aiMessageId
+                  ? {
+                      ...message,
+                      text: fullText || "No response",
+                      metadata: finalMetadata || message.metadata
+                    }
+                  : message
+              ),
               title: isFirstMessage
                 ? text.length > 30
-                  ? text.slice(0, 30) + "..."
+                  ? `${text.slice(0, 30)}...`
                   : text
                 : chat.title
             };
@@ -881,15 +1015,16 @@ export default function App() {
 
             erroredChat = {
               ...chat,
-              messages: [
-                ...chat.messages,
-                {
-                  role: "ai",
-                  text: `Error generating response${
-                    err?.message ? `: ${err.message}` : ""
-                  }`
-                }
-              ]
+              messages: chat.messages.map((message) =>
+                message.id === aiMessageId
+                  ? {
+                      ...message,
+                      text: `Error generating response${
+                        err?.message ? `: ${err.message}` : ""
+                      }`
+                    }
+                  : message
+              )
             };
 
             return erroredChat;
@@ -967,9 +1102,26 @@ export default function App() {
     const isFirstMessage = activeChat.messages.length === 0;
 
     const uploadPreviewMessages = pendingUploads.map((file) => ({
+      id: createMessageId(),
       role: "user",
       text: `📎 File attached: ${file.name}`
     }));
+
+    const userMessage = input.trim()
+      ? {
+          id: createMessageId(),
+          role: "user",
+          text: userText
+        }
+      : null;
+
+    const aiMessageId = createMessageId();
+
+    const aiPlaceholderMessage = {
+      id: aiMessageId,
+      role: "ai",
+      text: ""
+    };
 
     let updatedChat = null;
 
@@ -981,8 +1133,9 @@ export default function App() {
           ...chat,
           messages: [
             ...chat.messages,
-            ...(input.trim() ? [{ role: "user", text: userText }] : []),
-            ...uploadPreviewMessages
+            ...(userMessage ? [userMessage] : []),
+            ...uploadPreviewMessages,
+            aiPlaceholderMessage
           ]
         };
 
@@ -1002,7 +1155,12 @@ export default function App() {
         await uploadFilesToFlowise(pendingUploads, currentChatId);
       }
 
-      await handleUserMessage(userText, currentChatId, isFirstMessage);
+      await handleUserMessage(
+        userText,
+        currentChatId,
+        isFirstMessage,
+        aiMessageId
+      );
 
       if (isSignedIn) {
         await incrementUsage();
@@ -1018,13 +1176,14 @@ export default function App() {
 
           erroredChat = {
             ...chat,
-            messages: [
-              ...chat.messages,
-              {
-                role: "ai",
-                text: `Error${err?.message ? `: ${err.message}` : ""}`
-              }
-            ]
+            messages: chat.messages.map((message) =>
+              message.id === aiMessageId
+                ? {
+                    ...message,
+                    text: `Error${err?.message ? `: ${err.message}` : ""}`
+                  }
+                : message
+            )
           };
 
           return erroredChat;
@@ -1243,7 +1402,7 @@ export default function App() {
               >
                 {activeChat?.messages.map((m, i) => (
                   <div
-                    key={i}
+                    key={m.id || i}
                     style={{
                       display: "flex",
                       justifyContent:
