@@ -52,7 +52,6 @@ function parseSSEEvent(eventBlock) {
     if (line.startsWith("event:")) {
       explicitEvent = line.slice(6).trim();
     } else if (line.startsWith("data:")) {
-      // Kein trimStart(), sonst geht Markdown kaputt
       dataLines.push(line.slice(5));
     }
   }
@@ -560,6 +559,85 @@ const footerStyles = {
     fontSize: 13,
     lineHeight: 1.6,
     margin: "0 0 14px 0"
+  }
+};
+
+const markdownStyles = {
+  h1: {
+    fontSize: 28,
+    fontWeight: 800,
+    lineHeight: 1.25,
+    margin: "0 0 12px 0",
+    color: "#111827"
+  },
+
+  h2: {
+    fontSize: 22,
+    fontWeight: 750,
+    lineHeight: 1.3,
+    margin: "18px 0 10px 0",
+    color: "#111827"
+  },
+
+  h3: {
+    fontSize: 18,
+    fontWeight: 700,
+    lineHeight: 1.35,
+    margin: "16px 0 8px 0",
+    color: "#111827"
+  },
+
+  p: {
+    margin: "0 0 10px 0",
+    lineHeight: 1.6,
+    whiteSpace: "pre-wrap"
+  },
+
+  ul: {
+    margin: "0 0 12px 0",
+    paddingLeft: 22
+  },
+
+  ol: {
+    margin: "0 0 12px 0",
+    paddingLeft: 22
+  },
+
+  li: {
+    marginBottom: 6,
+    lineHeight: 1.6
+  },
+
+  strong: {
+    fontWeight: 700
+  },
+
+  em: {
+    fontStyle: "italic"
+  },
+
+  inlineCode: {
+    background: "#f3f4f6",
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    padding: "2px 6px",
+    fontSize: "0.95em",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+  },
+
+  pre: {
+    background: "#111827",
+    color: "#f9fafb",
+    padding: 12,
+    borderRadius: 8,
+    overflowX: "auto",
+    margin: "12px 0"
+  },
+
+  codeBlock: {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: 13,
+    whiteSpace: "pre-wrap"
   }
 };
 
@@ -1473,7 +1551,57 @@ export default function App() {
                           : styles.aiBubble)
                       }}
                     >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h1: ({ children }) => (
+                            <h1 style={markdownStyles.h1}>{children}</h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 style={markdownStyles.h2}>{children}</h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 style={markdownStyles.h3}>{children}</h3>
+                          ),
+                          p: ({ children }) => (
+                            <p style={markdownStyles.p}>{children}</p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul style={markdownStyles.ul}>{children}</ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol style={markdownStyles.ol}>{children}</ol>
+                          ),
+                          li: ({ children }) => (
+                            <li style={markdownStyles.li}>{children}</li>
+                          ),
+                          strong: ({ children }) => (
+                            <strong style={markdownStyles.strong}>
+                              {children}
+                            </strong>
+                          ),
+                          em: ({ children }) => (
+                            <em style={markdownStyles.em}>{children}</em>
+                          ),
+                          code({ inline, children }) {
+                            if (inline) {
+                              return (
+                                <code style={markdownStyles.inlineCode}>
+                                  {children}
+                                </code>
+                              );
+                            }
+
+                            return (
+                              <pre style={markdownStyles.pre}>
+                                <code style={markdownStyles.codeBlock}>
+                                  {children}
+                                </code>
+                              </pre>
+                            );
+                          }
+                        }}
+                      >
                         {m.text}
                       </ReactMarkdown>
                     </div>
