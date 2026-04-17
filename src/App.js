@@ -52,11 +52,12 @@ function parseSSEEvent(eventBlock) {
     if (line.startsWith("event:")) {
       explicitEvent = line.slice(6).trim();
     } else if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
+      // Kein trimStart(), sonst geht Markdown kaputt
+      dataLines.push(line.slice(5));
     }
   }
 
-  const rawData = dataLines.join("\n").trim();
+  const rawData = dataLines.join("\n");
 
   if (!rawData) {
     return {
@@ -87,6 +88,16 @@ function parseSSEEvent(eventBlock) {
     event: explicitEvent || "token",
     data: rawData
   };
+}
+
+function normalizeMarkdownText(text) {
+  if (typeof text !== "string") return "";
+
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t");
 }
 
 async function uploadFilesToFlowise(files, chatId) {
@@ -905,7 +916,9 @@ export default function App() {
 
         if (!contentType.includes("text/event-stream") || !res.body) {
           const data = await res.json();
-          const aiText = data.text || data.answer || data.result || "No response";
+          const aiText = normalizeMarkdownText(
+            data.text || data.answer || data.result || "No response"
+          );
 
           let updatedChat = null;
 
@@ -968,7 +981,8 @@ export default function App() {
           if (event === "start") return;
 
           if (event === "token" || event === "message") {
-            fullText += data;
+            const chunk = normalizeMarkdownText(data);
+            fullText += chunk;
             applyPartialText(fullText);
             return;
           }
@@ -1012,7 +1026,7 @@ export default function App() {
           processEventBlock(buffer);
         }
 
-        const finalText = fullText.trim() || "No response";
+        const finalText = normalizeMarkdownText(fullText) || "No response";
 
         let updatedChat = null;
 
