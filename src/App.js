@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -1495,7 +1496,7 @@ export default function App() {
       );
 
       if (isSignedIn) {
-        incrementUsage();
+        await incrementUsage();
       } else {
         setGuestMessageCount((prev) => prev + 1);
       }
