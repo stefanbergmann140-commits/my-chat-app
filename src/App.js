@@ -8,7 +8,6 @@ import {
   useSession,
   useUser
 } from "@clerk/clerk-react";
-import headphones from "./assets/headphones.png";
 
 /* =========================
    CONFIG
@@ -143,6 +142,27 @@ function createClerkSupabaseClient(session) {
 /* =========================
    ICONS
 ========================= */
+function HeadphoneIcon({ size = 26 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M4 12a8 8 0 0 1 16 0"
+        stroke="#a78bfa"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <rect x="3" y="12" width="4" height="7" rx="2" fill="#a78bfa" />
+      <rect x="17" y="12" width="4" height="7" rx="2" fill="#a78bfa" />
+    </svg>
+  );
+}
+
 function MicrophoneIcon({ size = 18 }) {
   return (
     <svg
@@ -239,14 +259,16 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
           >
             EDMAI
           </h1>
-          <img
-            src={headphones}
-            alt="Headphones"
+
+          <div
             style={{
-              ...headerStyles.logoImage,
-              ...(isMobile ? { height: 20 } : {})
+              display: "flex",
+              alignItems: "center",
+              marginLeft: 4
             }}
-          />
+          >
+            <HeadphoneIcon size={isMobile ? 20 : 24} />
+          </div>
         </div>
       </div>
 
@@ -316,7 +338,7 @@ const headerStyles = {
   container: {
     display: "flex",
     alignItems: "center",
-    gap: 3
+    gap: 4
   },
 
   logo: {
@@ -325,12 +347,6 @@ const headerStyles = {
     fontWeight: "700",
     color: "#fff",
     letterSpacing: "1px"
-  },
-
-  logoImage: {
-    height: 24,
-    width: "auto",
-    objectFit: "contain"
   },
 
   userArea: {
@@ -1658,7 +1674,7 @@ export default function App() {
                   boxShadow: sidebarOpen
                     ? "0 10px 30px rgba(0,0,0,0.18)"
                     : "none",
-                  borderRight: "1px solid #e5e7eb"
+                  borderRight: "1px solid #f1f1f1"
                 }
               : {})
           }}
@@ -1675,7 +1691,7 @@ export default function App() {
             }}
             disabled={!canUseSavedFeatures}
           >
-            + New Chat
+            New chat
           </button>
 
           <input
@@ -1721,10 +1737,20 @@ export default function App() {
                 <div
                   key={chat.id}
                   onClick={() => openChat(chat.id)}
+                  onMouseEnter={(e) => {
+                    if (chat.id !== activeChatId) {
+                      e.currentTarget.style.background = "#f9fafb";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (chat.id !== activeChatId) {
+                      e.currentTarget.style.background = "transparent";
+                    }
+                  }}
                   style={{
                     ...styles.chatItem,
                     background:
-                      chat.id === activeChatId ? "#e5e7eb" : "transparent",
+                      chat.id === activeChatId ? "#f3f4f6" : "transparent",
                     cursor: canUseSavedFeatures ? "pointer" : "not-allowed",
                     opacity: canUseSavedFeatures ? 1 : 0.6
                   }}
@@ -2069,32 +2095,33 @@ const styles = {
 
   sidebar: {
     width: 280,
-    borderRight: "1px solid #e5e7eb",
-    padding: 12,
-    background: "#f7f7f8",
+    borderRight: "1px solid #f1f1f1",
+    padding: 14,
+    background: "#ffffff",
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 12,
     minHeight: 0
   },
 
   newChat: {
     width: "100%",
-    padding: 10,
-    marginBottom: 2,
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    background: "#fff",
+    padding: "14px",
+    marginBottom: 8,
+    borderRadius: 14,
+    border: "none",
+    background: "#e5e7eb",
     cursor: "pointer",
     fontWeight: 600,
-    color: "#111827"
+    fontSize: 16,
+    color: "#374151"
   },
 
   searchInput: {
     width: "100%",
     padding: 10,
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
     outline: "none",
     boxSizing: "border-box",
     background: "#fff"
@@ -2102,7 +2129,7 @@ const styles = {
 
   usageBox: {
     padding: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     background: "#f9fafb",
     color: "#374151",
     fontSize: 12,
@@ -2118,10 +2145,11 @@ const styles = {
 
   chatItem: {
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     cursor: "pointer",
     marginBottom: 6,
-    border: "1px solid transparent"
+    border: "1px solid transparent",
+    transition: "background 0.15s ease"
   },
 
   chatTitle: {
