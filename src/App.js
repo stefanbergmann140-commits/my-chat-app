@@ -182,7 +182,7 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
             alt="Headphones"
             style={{
               ...headerStyles.logoImage,
-              ...(isMobile ? { height: 26 } : {})
+              ...(isMobile ? { height: 20 } : {})
             }}
           />
         </div>
@@ -254,7 +254,7 @@ const headerStyles = {
   container: {
     display: "flex",
     alignItems: "center",
-    gap: 12
+    gap: 6
   },
 
   logo: {
@@ -266,7 +266,7 @@ const headerStyles = {
   },
 
   logoImage: {
-    height: 32,
+    height: 24,
     width: "auto",
     objectFit: "contain"
   },
@@ -2022,7 +2022,8 @@ const styles = {
     border: "1px solid #d1d5db",
     background: "#fff",
     cursor: "pointer",
-    fontWeight: 600
+    fontWeight: 600,
+    color: "#111827"
   },
 
   searchInput: {
@@ -2181,7 +2182,7 @@ const styles = {
   input: {
     flex: 1,
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     border: "1px solid #d1d5db",
     outline: "none",
     minWidth: 0
@@ -2189,26 +2190,29 @@ const styles = {
 
   button: {
     padding: "10px 14px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    background: "#f3f4f6",
+    borderRadius: 8,
+    border: "1px solid #111827",
+    background: "#111827",
+    color: "#fff",
     cursor: "pointer",
     fontWeight: 600
   },
 
   iconButton: {
     padding: "10px 12px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    background: "#fff",
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    background: "#f9fafb",
+    color: "#374151",
     cursor: "pointer",
     fontSize: 16,
     minWidth: 44
   },
 
   recordingButton: {
-    background: "#fee2e2",
-    border: "1px solid #ef4444"
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    color: "#b91c1c"
   },
 
   disabledButton: {
