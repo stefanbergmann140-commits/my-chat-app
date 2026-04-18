@@ -25,6 +25,7 @@ const SUPABASE_JWT_TEMPLATE = "supabase";
 
 const GUEST_LOGIN_PROMPT_AFTER = 5;
 const FREE_MESSAGE_LIMIT = 20;
+const MOBILE_BREAKPOINT = 768;
 
 /* =========================
    HELPERS
@@ -142,16 +143,49 @@ function createClerkSupabaseClient(session) {
 /* =========================
    HEADER
 ========================= */
-function Header({ isSignedIn }) {
+function Header({ isSignedIn, isMobile, onToggleSidebar }) {
   return (
-    <header style={headerStyles.header}>
-      <div style={headerStyles.container}>
-        <h1 style={headerStyles.logo}>EDMAI</h1>
-        <img
-          src={headphones}
-          alt="Headphones"
-          style={headerStyles.logoImage}
-        />
+    <header
+      style={{
+        ...headerStyles.header,
+        ...(isMobile
+          ? {
+              height: 72,
+              padding: "0 14px"
+            }
+          : {})
+      }}
+    >
+      <div style={headerStyles.leftArea}>
+        {isMobile ? (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            style={headerStyles.menuButton}
+            aria-label="Toggle menu"
+          >
+            ☰
+          </button>
+        ) : null}
+
+        <div style={headerStyles.container}>
+          <h1
+            style={{
+              ...headerStyles.logo,
+              ...(isMobile ? { fontSize: 20 } : {})
+            }}
+          >
+            EDMAI
+          </h1>
+          <img
+            src={headphones}
+            alt="Headphones"
+            style={{
+              ...headerStyles.logoImage,
+              ...(isMobile ? { height: 26 } : {})
+            }}
+          />
+        </div>
       </div>
 
       <div style={headerStyles.userArea}>
@@ -160,15 +194,27 @@ function Header({ isSignedIn }) {
             appearance={{
               elements: {
                 avatarBox: {
-                  width: 36,
-                  height: 36
+                  width: isMobile ? 32 : 36,
+                  height: isMobile ? 32 : 36
                 }
               }
             }}
           />
         ) : (
           <SignInButton mode="modal">
-            <button style={headerStyles.loginButton}>Login</button>
+            <button
+              style={{
+                ...headerStyles.loginButton,
+                ...(isMobile
+                  ? {
+                      padding: "8px 12px",
+                      fontSize: 14
+                    }
+                  : {})
+              }}
+            >
+              Login
+            </button>
           </SignInButton>
         )}
       </div>
@@ -184,7 +230,25 @@ const headerStyles = {
     justifyContent: "space-between",
     background: "#000",
     borderBottom: "1px solid #111",
-    padding: "0 20px"
+    padding: "0 20px",
+    flexShrink: 0
+  },
+
+  leftArea: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12
+  },
+
+  menuButton: {
+    border: "1px solid #2a2a2a",
+    background: "#111",
+    color: "#fff",
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    cursor: "pointer",
+    fontSize: 18
   },
 
   container: {
@@ -226,7 +290,7 @@ const headerStyles = {
 /* =========================
    FOOTER
 ========================= */
-function Footer() {
+function Footer({ isMobile }) {
   const [activeSection, setActiveSection] = useState(null);
 
   const toggleSection = (section) => {
@@ -234,9 +298,19 @@ function Footer() {
   };
 
   return (
-    <footer style={footerStyles.footer}>
+    <footer
+      style={{
+        ...footerStyles.footer,
+        ...(isMobile ? { padding: "12px 14px" } : {})
+      }}
+    >
       <div style={footerStyles.container}>
-        <div style={footerStyles.links}>
+        <div
+          style={{
+            ...footerStyles.links,
+            ...(isMobile ? { gap: 16 } : {})
+          }}
+        >
           <button
             type="button"
             onClick={() => toggleSection("support")}
@@ -271,7 +345,17 @@ function Footer() {
         </div>
 
         {activeSection && (
-          <div style={footerStyles.panel}>
+          <div
+            style={{
+              ...footerStyles.panel,
+              ...(isMobile
+                ? {
+                    maxHeight: 220,
+                    padding: 14
+                  }
+                : {})
+            }}
+          >
             {activeSection === "support" && (
               <div>
                 <h3 style={footerStyles.title}>Support</h3>
@@ -508,7 +592,8 @@ const footerStyles = {
   footer: {
     background: "#000",
     borderTop: "1px solid #111",
-    padding: "14px 20px"
+    padding: "14px 20px",
+    flexShrink: 0
   },
 
   container: {
@@ -564,33 +649,34 @@ const footerStyles = {
 
 const markdownStyles = {
   h1: {
-    fontSize: 28,
-    fontWeight: 800,
-    lineHeight: 1.25,
-    margin: "0 0 12px 0",
-    color: "#111827"
+    fontSize: 24,
+    fontWeight: 700,
+    lineHeight: 1.3,
+    margin: "0 0 10px 0",
+    color: "#1f2937"
   },
 
   h2: {
-    fontSize: 22,
-    fontWeight: 750,
-    lineHeight: 1.3,
-    margin: "18px 0 10px 0",
-    color: "#111827"
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    margin: "16px 0 8px 0",
+    color: "#1f2937"
   },
 
   h3: {
-    fontSize: 18,
-    fontWeight: 700,
-    lineHeight: 1.35,
-    margin: "16px 0 8px 0",
-    color: "#111827"
+    fontSize: 16,
+    fontWeight: 600,
+    lineHeight: 1.4,
+    margin: "14px 0 6px 0",
+    color: "#1f2937"
   },
 
   p: {
     margin: "0 0 10px 0",
     lineHeight: 1.6,
-    whiteSpace: "pre-wrap"
+    whiteSpace: "pre-wrap",
+    color: "#111827"
   },
 
   ul: {
@@ -605,11 +691,12 @@ const markdownStyles = {
 
   li: {
     marginBottom: 6,
-    lineHeight: 1.6
+    lineHeight: 1.6,
+    color: "#111827"
   },
 
   strong: {
-    fontWeight: 700
+    fontWeight: 600
   },
 
   em: {
@@ -647,6 +734,12 @@ const markdownStyles = {
 export default function App() {
   const { isLoaded, isSignedIn, user } = useUser();
   const { session } = useSession();
+
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const supabase = useMemo(() => {
     if (!isLoaded || !session || !isSignedIn) return null;
@@ -701,6 +794,34 @@ export default function App() {
     usage &&
     usage.plan !== "premium" &&
     usage.message_count >= FREE_MESSAGE_LIMIT;
+
+  const bubbleStyles = useMemo(
+    () => ({
+      ...styles.bubble,
+      ...(isMobile
+        ? {
+            maxWidth: "92vw",
+            padding: 10,
+            fontSize: 15
+          }
+        : {})
+    }),
+    [isMobile]
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      const nextIsMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      setIsMobile(nextIsMobile);
+      if (!nextIsMobile) {
+        setSidebarOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const ensureUsageRow = useCallback(async () => {
     if (!supabase || !isSignedIn || !user?.id) return null;
@@ -1366,6 +1487,7 @@ export default function App() {
       setHasStarted(false);
       setInput("");
       setPendingUploads([]);
+      if (isMobile) setSidebarOpen(false);
 
       setTimeout(() => {
         inputRef.current?.focus();
@@ -1428,6 +1550,9 @@ export default function App() {
     }
 
     setActiveChatId(chatId);
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
   };
 
   const showDbLoading = isLoaded && isSignedIn && !dbReady && !dbError;
@@ -1435,10 +1560,47 @@ export default function App() {
 
   return (
     <div style={styles.app}>
-      <Header isSignedIn={isSignedIn} />
+      <Header
+        isSignedIn={isSignedIn}
+        isMobile={isMobile}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+      />
 
-      <div style={styles.body}>
-        <div style={styles.sidebar}>
+      <div
+        style={{
+          ...styles.body,
+          ...(isMobile ? { overflow: "auto" } : {})
+        }}
+      >
+        {isMobile && sidebarOpen ? (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={styles.mobileOverlay}
+          />
+        ) : null}
+
+        <div
+          style={{
+            ...styles.sidebar,
+            ...(isMobile
+              ? {
+                  position: "fixed",
+                  top: 72,
+                  left: 0,
+                  bottom: 0,
+                  width: "86vw",
+                  maxWidth: 360,
+                  zIndex: 30,
+                  transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+                  transition: "transform 0.2s ease",
+                  boxShadow: sidebarOpen
+                    ? "0 10px 30px rgba(0,0,0,0.18)"
+                    : "none",
+                  borderRight: "1px solid #e5e7eb"
+                }
+              : {})
+          }}
+        >
           <button
             onClick={() => {
               if (!canUseSavedFeatures) return;
@@ -1520,7 +1682,12 @@ export default function App() {
           </div>
         </div>
 
-        <div style={styles.main}>
+        <div
+          style={{
+            ...styles.main,
+            ...(isMobile ? { width: "100%" } : {})
+          }}
+        >
           {showDbLoading ? (
             <div style={styles.centerState}>Loading your chats...</div>
           ) : (
@@ -1530,7 +1697,8 @@ export default function App() {
                   ...styles.chatArea,
                   flex: hasStarted ? 1 : "unset",
                   maxHeight: hasStarted ? "none" : 300,
-                  overflowY: hasStarted ? "auto" : "hidden"
+                  overflowY: hasStarted ? "auto" : "hidden",
+                  ...(isMobile ? { padding: 8 } : {})
                 }}
               >
                 {activeChat?.messages.map((m, i) => (
@@ -1540,12 +1708,12 @@ export default function App() {
                       display: "flex",
                       justifyContent:
                         m.role === "user" ? "flex-end" : "flex-start",
-                      padding: 10
+                      padding: isMobile ? 6 : 10
                     }}
                   >
                     <div
                       style={{
-                        ...styles.bubble,
+                        ...bubbleStyles,
                         ...(m.role === "user"
                           ? styles.userBubble
                           : styles.aiBubble)
@@ -1555,13 +1723,34 @@ export default function App() {
                         remarkPlugins={[remarkGfm]}
                         components={{
                           h1: ({ children }) => (
-                            <h1 style={markdownStyles.h1}>{children}</h1>
+                            <h1
+                              style={{
+                                ...markdownStyles.h1,
+                                ...(isMobile ? { fontSize: 22 } : {})
+                              }}
+                            >
+                              {children}
+                            </h1>
                           ),
                           h2: ({ children }) => (
-                            <h2 style={markdownStyles.h2}>{children}</h2>
+                            <h2
+                              style={{
+                                ...markdownStyles.h2,
+                                ...(isMobile ? { fontSize: 18 } : {})
+                              }}
+                            >
+                              {children}
+                            </h2>
                           ),
                           h3: ({ children }) => (
-                            <h3 style={markdownStyles.h3}>{children}</h3>
+                            <h3
+                              style={{
+                                ...markdownStyles.h3,
+                                ...(isMobile ? { fontSize: 15 } : {})
+                              }}
+                            >
+                              {children}
+                            </h3>
                           ),
                           p: ({ children }) => (
                             <p style={markdownStyles.p}>{children}</p>
@@ -1659,10 +1848,16 @@ export default function App() {
                   ...styles.inputWrapper,
                   justifyContent: "center",
                   alignItems: hasStarted ? "flex-end" : "center",
-                  flex: hasStarted ? "unset" : 1
+                  flex: hasStarted ? "unset" : 1,
+                  ...(isMobile ? { padding: 10 } : {})
                 }}
               >
-                <div style={styles.composerWrap}>
+                <div
+                  style={{
+                    ...styles.composerWrap,
+                    ...(isMobile ? { maxWidth: "100%" } : {})
+                  }}
+                >
                   {pendingUploads.length > 0 && (
                     <div style={styles.uploadPreviewBar}>
                       {pendingUploads.map((file, index) => (
@@ -1684,53 +1879,91 @@ export default function App() {
                     </div>
                   )}
 
-                  <div style={styles.inputBar}>
+                  <div
+                    style={{
+                      ...styles.inputBar,
+                      ...(isMobile
+                        ? {
+                            gap: 8,
+                            padding: 8,
+                            flexWrap: "wrap",
+                            alignItems: "stretch"
+                          }
+                        : {})
+                    }}
+                  >
                     <input
                       ref={inputRef}
                       autoFocus
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       placeholder="What problem are you facing right now producing EDM?"
-                      style={styles.input}
+                      style={{
+                        ...styles.input,
+                        ...(isMobile
+                          ? {
+                              minWidth: "100%",
+                              width: "100%"
+                            }
+                          : {})
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") sendMessage();
                       }}
                     />
 
-                    <button
-                      onClick={toggleRecording}
+                    <div
                       style={{
-                        ...styles.iconButton,
-                        ...(isRecording ? styles.recordingButton : {}),
-                        ...(speechSupported ? {} : styles.disabledButton)
+                        display: "flex",
+                        gap: 8,
+                        width: isMobile ? "100%" : "auto"
                       }}
-                      title="Voice input"
-                      disabled={!speechSupported}
                     >
-                      🎤
-                    </button>
+                      <button
+                        onClick={toggleRecording}
+                        style={{
+                          ...styles.iconButton,
+                          ...(isRecording ? styles.recordingButton : {}),
+                          ...(speechSupported ? {} : styles.disabledButton),
+                          ...(isMobile ? { flex: 1 } : {})
+                        }}
+                        title="Voice input"
+                        disabled={!speechSupported}
+                      >
+                        🎤
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        fileInputRef.current?.click();
-                      }}
-                      style={styles.iconButton}
-                      title="Upload file"
-                    >
-                      📎
-                    </button>
+                      <button
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                        }}
+                        style={{
+                          ...styles.iconButton,
+                          ...(isMobile ? { flex: 1 } : {})
+                        }}
+                        title="Upload file"
+                      >
+                        📎
+                      </button>
 
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={handleFileSelect}
-                    />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={handleFileSelect}
+                      />
 
-                    <button onClick={sendMessage} style={styles.button}>
-                      Send
-                    </button>
+                      <button
+                        onClick={sendMessage}
+                        style={{
+                          ...styles.button,
+                          ...(isMobile ? { flex: 2 } : {})
+                        }}
+                      >
+                        Send
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1739,7 +1972,7 @@ export default function App() {
         </div>
       </div>
 
-      <Footer />
+      <Footer isMobile={isMobile} />
     </div>
   );
 }
@@ -1756,10 +1989,18 @@ const styles = {
     background: "#ffffff"
   },
 
+  mobileOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.28)",
+    zIndex: 20
+  },
+
   body: {
     display: "flex",
     flex: 1,
-    overflow: "hidden"
+    overflow: "hidden",
+    minHeight: 0
   },
 
   sidebar: {
@@ -1769,7 +2010,8 @@ const styles = {
     background: "#f7f7f8",
     display: "flex",
     flexDirection: "column",
-    gap: 10
+    gap: 10,
+    minHeight: 0
   },
 
   newChat: {
@@ -1805,7 +2047,8 @@ const styles = {
   chatList: {
     overflowY: "auto",
     flex: 1,
-    paddingRight: 4
+    paddingRight: 4,
+    minHeight: 0
   },
 
   chatItem: {
@@ -1845,11 +2088,13 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
-    minWidth: 0
+    minWidth: 0,
+    minHeight: 0
   },
 
   chatArea: {
-    padding: 10
+    padding: 10,
+    minHeight: 0
   },
 
   bubble: {
@@ -1938,7 +2183,8 @@ const styles = {
     padding: 10,
     borderRadius: 6,
     border: "1px solid #d1d5db",
-    outline: "none"
+    outline: "none",
+    minWidth: 0
   },
 
   button: {
