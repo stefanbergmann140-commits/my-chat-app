@@ -99,6 +99,16 @@ function normalizeMarkdownText(text) {
     .replace(/\\t/g, "\t");
 }
 
+async function readJsonSafely(res, fallbackMessage = "Ungültige JSON-Antwort") {
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    throw new Error(text || fallbackMessage);
+  }
+}
+
 async function uploadFilesToFlowise(files, chatId) {
   const formData = new FormData();
 
@@ -120,7 +130,7 @@ async function uploadFilesToFlowise(files, chatId) {
     throw new Error(errText || "Upload failed");
   }
 
-  return await res.json();
+  return await readJsonSafely(res, "Upload response was not valid JSON");
 }
 
 function createClerkSupabaseClient(session) {
@@ -846,6 +856,10 @@ export default function App() {
   const recognitionRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Performance: nur die neueste Save-Anfrage pro Chat wirklich speichern
+  const pendingPersistMapRef = useRef(new Map());
+  const activePersistMapRef = useRef(new Map());
+
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
 
   const filteredChats = useMemo(() => {
@@ -974,6 +988,15 @@ export default function App() {
 
     setUsage(data);
   }, [supabase, isSignedIn, user?.id, usage, ensureUsageRow]);
+
+  const incrementUsageInBackground = useCallback(() => {
+    Promise.resolve()
+      .then(() => incrementUsage())
+      .catch((err) => {
+        console.error("incrementUsage failed", err);
+        setDbError(err?.message || "Failed to update usage.");
+      });
+  }, [incrementUsage]);
 
   const loadChats = useCallback(async () => {
     if (!supabase || !isSignedIn) return;
@@ -1162,6 +1185,38 @@ export default function App() {
     [supabase, isSignedIn]
   );
 
+  const queuePersistChat = useCallback(
+    (chat) => {
+      if (!supabase || !isSignedIn || !chat?.id) return;
+
+      pendingPersistMapRef.current.set(chat.id, chat);
+
+      if (activePersistMapRef.current.get(chat.id)) {
+        return;
+      }
+
+      const run = async () => {
+        activePersistMapRef.current.set(chat.id, true);
+
+        try {
+          while (pendingPersistMapRef.current.has(chat.id)) {
+            const latestChat = pendingPersistMapRef.current.get(chat.id);
+            pendingPersistMapRef.current.delete(chat.id);
+            await persistChat(latestChat);
+          }
+        } catch (err) {
+          console.error("persistChat failed", err);
+          setDbError(err?.message || "Failed to save chat.");
+        } finally {
+          activePersistMapRef.current.delete(chat.id);
+        }
+      };
+
+      Promise.resolve().then(run);
+    },
+    [persistChat, supabase, isSignedIn]
+  );
+
   const handleUserMessage = useCallback(
     async (text, currentChatId, isFirstMessage, aiMessageId) => {
       let fullText = "";
@@ -1192,7 +1247,11 @@ export default function App() {
         const contentType = res.headers.get("content-type") || "";
 
         if (!contentType.includes("text/event-stream") || !res.body) {
-          const data = await res.json();
+          const data = await readJsonSafely(
+            res,
+            "Prediction response was not valid JSON"
+          );
+
           const aiText = normalizeMarkdownText(
             data.text || data.answer || data.result || "No response"
           );
@@ -1222,7 +1281,7 @@ export default function App() {
           );
 
           if (updatedChat && isSignedIn) {
-            await persistChat(updatedChat);
+            queuePersistChat(updatedChat);
           }
 
           return;
@@ -1334,7 +1393,7 @@ export default function App() {
         );
 
         if (updatedChat && isSignedIn) {
-          await persistChat(updatedChat);
+          queuePersistChat(updatedChat);
         }
       } catch (err) {
         let erroredChat = null;
@@ -1362,13 +1421,11 @@ export default function App() {
         );
 
         if (erroredChat && isSignedIn) {
-          try {
-            await persistChat(erroredChat);
-          } catch (_) {}
+          queuePersistChat(erroredChat);
         }
       }
     },
-    [persistChat, isSignedIn]
+    [queuePersistChat, isSignedIn]
   );
 
   const openCheckout = async () => {
@@ -1395,7 +1452,10 @@ export default function App() {
         }
       });
 
-      const data = await res.json();
+      const data = await readJsonSafely(
+        res,
+        "Checkout response was not valid JSON"
+      );
 
       if (!res.ok) {
         throw new Error(data?.error || "Failed to start checkout");
@@ -1453,13 +1513,11 @@ export default function App() {
       text: ""
     };
 
-    let updatedChat = null;
-
     setChats((prev) =>
       prev.map((chat) => {
         if (chat.id !== currentChatId) return chat;
 
-        updatedChat = {
+        return {
           ...chat,
           messages: [
             ...chat.messages,
@@ -1468,8 +1526,6 @@ export default function App() {
             aiPlaceholderMessage
           ]
         };
-
-        return updatedChat;
       })
     );
 
@@ -1477,10 +1533,6 @@ export default function App() {
     setLoading(true);
 
     try {
-      if (updatedChat && isSignedIn) {
-        await persistChat(updatedChat);
-      }
-
       if (pendingUploads.length > 0) {
         await uploadFilesToFlowise(pendingUploads, currentChatId);
       }
@@ -1495,7 +1547,7 @@ export default function App() {
       );
 
       if (isSignedIn) {
-        await incrementUsage();
+        incrementUsageInBackground();
       } else {
         setGuestMessageCount((prev) => prev + 1);
       }
@@ -1523,9 +1575,7 @@ export default function App() {
       );
 
       if (erroredChat && isSignedIn) {
-        try {
-          await persistChat(erroredChat);
-        } catch (_) {}
+        queuePersistChat(erroredChat);
       }
     } finally {
       setPendingUploads([]);
