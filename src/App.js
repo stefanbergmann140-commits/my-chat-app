@@ -141,6 +141,68 @@ function createClerkSupabaseClient(session) {
 }
 
 /* =========================
+   ICONS
+========================= */
+function MicrophoneIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 3a3 3 0 0 0-3 3v6a3 3 0 1 0 6 0V6a3 3 0 0 0-3-3Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19 10v2a7 7 0 0 1-14 0v-2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 19v3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 22h8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PaperclipIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M21.44 11.05 12.25 20.24a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/* =========================
    HEADER
 ========================= */
 function Header({ isSignedIn, isMobile, onToggleSidebar }) {
@@ -254,7 +316,7 @@ const headerStyles = {
   container: {
     display: "flex",
     alignItems: "center",
-    gap: 6
+    gap: 3
   },
 
   logo: {
@@ -1929,8 +1991,9 @@ export default function App() {
                         }}
                         title="Voice input"
                         disabled={!speechSupported}
+                        aria-label="Voice input"
                       >
-                        🎤
+                        <MicrophoneIcon size={18} />
                       </button>
 
                       <button
@@ -1942,8 +2005,9 @@ export default function App() {
                           ...(isMobile ? { flex: 1 } : {})
                         }}
                         title="Upload file"
+                        aria-label="Upload file"
                       >
-                        📎
+                        <PaperclipIcon size={18} />
                       </button>
 
                       <input
@@ -2200,13 +2264,18 @@ const styles = {
 
   iconButton: {
     padding: "10px 12px",
-    borderRadius: 8,
+    borderRadius: 999,
     border: "1px solid #e5e7eb",
     background: "#f9fafb",
     color: "#374151",
     cursor: "pointer",
     fontSize: 16,
-    minWidth: 44
+    minWidth: 44,
+    height: 44,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box"
   },
 
   recordingButton: {
