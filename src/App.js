@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import { Streamdown } from "streamdown";
 import remarkGfm from "remark-gfm";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -1012,7 +1013,15 @@ export default function App() {
   }, [supabase, isSignedIn]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = chatEndRef.current?.parentElement;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    if (distanceFromBottom < 120) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [chats, activeChatId, loading]);
 
   useEffect(() => {
@@ -1152,6 +1161,42 @@ export default function App() {
       let finalMetadata = null;
       let streamEnded = false;
 
+      let pendingText = "";
+      let frameRequested = false;
+
+      const flushPartialText = () => {
+        frameRequested = false;
+        const textToRender = pendingText;
+
+        setChats((prev) =>
+          prev.map((chat) => {
+            if (chat.id !== currentChatId) return chat;
+
+            return {
+              ...chat,
+              messages: chat.messages.map((message) =>
+                message.id === aiMessageId
+                  ? {
+                      ...message,
+                      text: textToRender,
+                      isStreaming: true
+                    }
+                  : message
+              )
+            };
+          })
+        );
+      };
+
+      const schedulePartialText = (partialText) => {
+        pendingText = partialText;
+
+        if (frameRequested) return;
+        frameRequested = true;
+
+        requestAnimationFrame(flushPartialText);
+      };
+
       try {
         const res = await fetch("/api/flowise", {
           method: "POST",
@@ -1230,27 +1275,6 @@ export default function App() {
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
 
-        const applyPartialText = (partialText) => {
-          setChats((prev) =>
-            prev.map((chat) => {
-              if (chat.id !== currentChatId) return chat;
-
-              return {
-                ...chat,
-                messages: chat.messages.map((message) =>
-                  message.id === aiMessageId
-                    ? {
-                        ...message,
-                        text: partialText,
-                        isStreaming: true
-                      }
-                    : message
-                )
-              };
-            })
-          );
-        };
-
         const processEventBlock = (eventBlock) => {
           if (!eventBlock.trim()) return;
 
@@ -1262,7 +1286,7 @@ export default function App() {
           if (event === "token" || event === "message") {
             const chunk = normalizeMarkdownText(data);
             fullText += chunk;
-            applyPartialText(fullText);
+            schedulePartialText(fullText);
             return;
           }
 
@@ -1311,6 +1335,10 @@ export default function App() {
 
         if (!streamEnded && buffer.trim()) {
           processEventBlock(buffer);
+        }
+
+        if (frameRequested) {
+          flushPartialText();
         }
 
         const finalText = normalizeMarkdownText(fullText) || "No response";
@@ -1822,14 +1850,21 @@ export default function App() {
                     <div
                       style={{
                         ...bubbleStyles,
-                        ...(m.role === "user"
-                          ? styles.userBubble
-                          : styles.aiBubble)
+                        ...(m.role === "user" ? styles.userBubble : styles.aiBubble),
+                        ...(m.role === "ai" && m.isStreaming
+                          ? {
+                              boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                              opacity: 0.98
+                            }
+                          : {})
                       }}
                     >
                       {m.role === "ai" && m.isStreaming ? (
-                        <div style={{ whiteSpace: "pre-wrap", color: "#111827" }}>
-                          {m.text}
+                        <div style={{ lineHeight: 1.65 }}>
+                          <Streamdown parseIncompleteMarkdown smoothScroll={false}>
+                            {m.text}
+                          </Streamdown>
+                          <span style={styles.streamingCursor}>▋</span>
                         </div>
                       ) : (
                         <ReactMarkdown
@@ -1912,8 +1947,12 @@ export default function App() {
                 ))}
 
                 {loading && (
-                  <div style={{ padding: 10, opacity: 0.6 }}>
-                    Bot is typing...
+                  <div style={styles.typingRow}>
+                    <div style={styles.typingDots}>
+                      <span style={styles.typingDot} />
+                      <span style={styles.typingDot} />
+                      <span style={styles.typingDot} />
+                    </div>
                   </div>
                 )}
 
@@ -2227,7 +2266,8 @@ const styles = {
   },
 
   aiBubble: {
-    background: "#fff"
+    background: "#fff",
+    transition: "box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease"
   },
 
   inputWrapper: {
@@ -2366,6 +2406,37 @@ const styles = {
     justifyContent: "center",
     fontSize: 16,
     color: "#6b7280"
+  },
+
+  typingRow: {
+    padding: 10,
+    display: "flex",
+    justifyContent: "flex-start"
+  },
+
+  typingDots: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 12px",
+    borderRadius: 999,
+    border: "1px solid #e5e7eb",
+    background: "#fff"
+  },
+
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: "#9ca3af",
+    display: "inline-block"
+  },
+
+  streamingCursor: {
+    display: "inline-block",
+    marginLeft: 2,
+    color: "#6b7280",
+    opacity: 0.8
   },
 
   funnelCard: {
