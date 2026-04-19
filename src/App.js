@@ -30,6 +30,14 @@ function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function createGuestChatId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `guest-${crypto.randomUUID()}`;
+  }
+
+  return `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function parseSSEEvent(eventBlock) {
   const lines = eventBlock.split("\n");
   let explicitEvent = null;
@@ -781,6 +789,8 @@ export default function App() {
   const { isLoaded, isSignedIn, user } = useUser();
   const { session } = useSession();
 
+  const initialGuestChatIdRef = useRef(createGuestChatId());
+
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth <= MOBILE_BREAKPOINT;
@@ -792,10 +802,12 @@ export default function App() {
     return createClerkSupabaseClient(session);
   }, [isLoaded, session, isSignedIn]);
 
-  const [chats, setChats] = useState([
-    { id: "guest-1", title: "New Chat", messages: [] }
+  const [chats, setChats] = useState(() => [
+    { id: initialGuestChatIdRef.current, title: "New Chat", messages: [] }
   ]);
-  const [activeChatId, setActiveChatId] = useState("guest-1");
+  const [activeChatId, setActiveChatId] = useState(
+    () => initialGuestChatIdRef.current
+  );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -1071,14 +1083,18 @@ export default function App() {
       loadChats();
       loadUsage();
     } else {
-      setChats([{ id: "guest-1", title: "New Chat", messages: [] }]);
-      setActiveChatId("guest-1");
+      const freshGuestId = createGuestChatId();
+      initialGuestChatIdRef.current = freshGuestId;
+
+      setChats([{ id: freshGuestId, title: "New Chat", messages: [] }]);
+      setActiveChatId(freshGuestId);
       setHasStarted(false);
       setDbReady(false);
       setDbError("");
       setPendingUploads([]);
       setSessionSearch("");
       setUsage(null);
+      setGuestMessageCount(0);
     }
   }, [isLoaded, isSignedIn, supabase, loadChats, loadUsage]);
 
@@ -1536,39 +1552,59 @@ export default function App() {
   };
 
   const createNewChat = async () => {
-    if (!isLoaded || !isSignedIn || !supabase) return;
+    if (isSignedIn) {
+      if (!isLoaded || !supabase) return;
 
-    const newChat = {
-      id: String(Date.now()),
-      title: "New Chat",
-      messages: [],
-      updated_at: new Date().toISOString()
-    };
+      const newChat = {
+        id: String(Date.now()),
+        title: "New Chat",
+        messages: [],
+        updated_at: new Date().toISOString()
+      };
 
-    try {
-      const { data, error } = await supabase
-        .from("chats")
-        .insert(newChat)
-        .select()
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("chats")
+          .insert(newChat)
+          .select()
+          .single();
 
-      if (error) {
-        throw new Error(error.message || "Failed to create chat.");
+        if (error) {
+          throw new Error(error.message || "Failed to create chat.");
+        }
+
+        setChats((prev) => [data, ...prev]);
+        setActiveChatId(data.id);
+        setHasStarted(false);
+        setInput("");
+        setPendingUploads([]);
+        if (isMobile) setSidebarOpen(false);
+
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 0);
+      } catch (err) {
+        setDbError(err.message || "Failed to create chat.");
       }
 
-      setChats((prev) => [data, ...prev]);
-      setActiveChatId(data.id);
-      setHasStarted(false);
-      setInput("");
-      setPendingUploads([]);
-      if (isMobile) setSidebarOpen(false);
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-    } catch (err) {
-      setDbError(err.message || "Failed to create chat.");
+      return;
     }
+
+    const newGuestId = createGuestChatId();
+    initialGuestChatIdRef.current = newGuestId;
+
+    setChats([{ id: newGuestId, title: "New Chat", messages: [] }]);
+    setActiveChatId(newGuestId);
+    setHasStarted(false);
+    setInput("");
+    setPendingUploads([]);
+    setGuestMessageCount(0);
+
+    if (isMobile) setSidebarOpen(false);
+
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
   };
 
   const toggleRecording = () => {
@@ -1630,7 +1666,7 @@ export default function App() {
   };
 
   const showDbLoading = isLoaded && isSignedIn && !dbReady && !dbError;
-  const canUseSavedFeatures = isLoaded && isSignedIn && !!supabase;
+  const canUseSavedFeatures = true;
 
   return (
     <div style={styles.app}>
@@ -1677,7 +1713,6 @@ export default function App() {
         >
           <button
             onClick={() => {
-              if (!canUseSavedFeatures) return;
               createNewChat();
             }}
             style={{
@@ -1698,9 +1733,7 @@ export default function App() {
               setSessionSearch(e.target.value);
             }}
             placeholder={
-              canUseSavedFeatures
-                ? "Search sessions..."
-                : "Login to search sessions..."
+              isSignedIn ? "Search sessions..." : "Search current guest chat..."
             }
             style={{
               ...styles.searchInput,
@@ -1712,8 +1745,9 @@ export default function App() {
 
           {!isSignedIn ? (
             <div style={styles.infoBox}>
-              Chat, voice input, and file upload are free to try. Log in to save
-              and search your chats.
+              Chat, voice input, and file upload are free to try. Guest chats
+              start fresh after each page reload. Log in to save and search your
+              chats.
             </div>
           ) : null}
 
@@ -1737,8 +1771,8 @@ export default function App() {
                     ...styles.chatItem,
                     background:
                       chat.id === activeChatId ? "#e5e7eb" : "transparent",
-                    cursor: canUseSavedFeatures ? "pointer" : "not-allowed",
-                    opacity: canUseSavedFeatures ? 1 : 0.6
+                    cursor: isSignedIn ? "pointer" : "default",
+                    opacity: 1
                   }}
                 >
                   <div style={styles.chatTitle}>{chat.title}</div>
