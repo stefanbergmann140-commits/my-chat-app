@@ -1157,7 +1157,19 @@ export default function App() {
         const contentType = res.headers.get("content-type") || "";
 
         if (!contentType.includes("text/event-stream") || !res.body) {
-          const data = await res.json();
+          const raw = await res.text();
+
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch (_) {
+            throw new Error(
+              `Expected JSON from /api/flowise, got ${
+                contentType || "unknown content-type"
+              }: ${raw.slice(0, 120)}`
+            );
+          }
+
           const aiText = normalizeMarkdownText(
             data.text || data.answer || data.result || "No response"
           );

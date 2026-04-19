@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const flowiseBaseUrl = process.env.FLOWISE_BASE_URL;
+    const flowiseBaseUrl = process.env.FLOWISE_BASE_URL?.replace(/\/$/, "");
     const chatflowId = process.env.FLOWISE_CHATFLOW_ID;
     const flowiseApiKey = process.env.FLOWISE_API_KEY;
 
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const upstreamUrl = `${flowiseBaseUrl}/prediction/${chatflowId}`;
+    const upstreamUrl = `${flowiseBaseUrl}/api/v1/prediction/${chatflowId}`;
 
     const headers = {
       "Content-Type": "application/json",
@@ -41,11 +41,15 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body)
     });
 
+    const contentType = upstream.headers.get("content-type") || "";
+
+    if (!upstream.ok) {
+      const raw = await upstream.text();
+      return res.status(upstream.status).send(raw);
+    }
+
     res.statusCode = upstream.status;
-    res.setHeader(
-      "Content-Type",
-      upstream.headers.get("content-type") || "text/event-stream"
-    );
+    res.setHeader("Content-Type", contentType || "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
 
