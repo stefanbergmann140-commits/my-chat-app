@@ -28,54 +28,55 @@ export default async function handler(req, res) {
 
     const headers = {
       "Content-Type": "application/json",
-      Accept: "application/json"
+      Accept: "text/event-stream"
     };
 
     if (flowiseApiKey) {
       headers.Authorization = `Bearer ${flowiseApiKey}`;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const upstream = await fetch(upstreamUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        ...req.body,
+        streaming: true
+      })
+    });
 
-    let upstream;
-
-    try {
-      upstream = await fetch(upstreamUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          ...req.body,
-          streaming: false
-        }),
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    const raw = await upstream.text();
     const contentType = upstream.headers.get("content-type") || "";
 
     if (!upstream.ok) {
+      const raw = await upstream.text();
       return res.status(upstream.status).send(raw);
     }
 
-    if (!contentType.includes("application/json")) {
-      return res.status(502).json({
-        error: "Flowise returned unexpected content type",
-        contentType,
-        preview: raw.slice(0, 300)
-      });
+    res.statusCode = upstream.status;
+    res.setHeader("Content-Type", contentType || "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
     }
 
-    return res.status(200).send(raw);
+    if (!upstream.body) {
+      res.end();
+      return;
+    }
+
+    const reader = upstream.body.getReader();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+
+    res.end();
   } catch (error) {
-    return res.status(500).json({
-      error:
-        error.name === "AbortError"
-          ? "Flowise request timed out after 60s"
-          : error.message || "Proxy request failed"
+    res.status(500).json({
+      error: error.message || "Proxy request failed"
     });
   }
 }

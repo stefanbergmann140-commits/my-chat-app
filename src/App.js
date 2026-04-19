@@ -30,6 +30,52 @@ function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function parseSSEEvent(eventBlock) {
+  const lines = eventBlock.split("\n");
+  let explicitEvent = null;
+  const dataLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      explicitEvent = line.slice(6).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5));
+    }
+  }
+
+  const rawData = dataLines.join("\n");
+
+  if (!rawData) {
+    return {
+      event: explicitEvent || "message",
+      data: ""
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawData);
+
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.event === "string"
+    ) {
+      return {
+        event: parsed.event,
+        data:
+          typeof parsed.data === "string"
+            ? parsed.data
+            : JSON.stringify(parsed.data ?? "")
+      };
+    }
+  } catch (_) {}
+
+  return {
+    event: explicitEvent || "token",
+    data: rawData
+  };
+}
+
 function normalizeMarkdownText(text) {
   if (typeof text !== "string") return "";
 
@@ -1086,36 +1132,172 @@ export default function App() {
 
   const handleUserMessage = useCallback(
     async (text, currentChatId, isFirstMessage, aiMessageId) => {
+      let fullText = "";
+      let finalMetadata = null;
+      let streamEnded = false;
+
       try {
         const res = await fetch("/api/flowise", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Accept: "application/json"
+            Accept: "text/event-stream"
           },
           body: JSON.stringify({
             question: text,
             chatId: currentChatId,
-            streaming: false
+            streaming: true
           })
         });
 
-        const raw = await res.text();
-
         if (!res.ok) {
-          throw new Error(raw || "Prediction request failed");
+          const errText = await res.text();
+          throw new Error(errText || "Prediction request failed");
         }
 
-        let data;
-        try {
-          data = JSON.parse(raw);
-        } catch (_) {
-          throw new Error(`Expected JSON, got: ${raw.slice(0, 200)}`);
+        const contentType = res.headers.get("content-type") || "";
+
+        if (!contentType.includes("text/event-stream") || !res.body) {
+          const raw = await res.text();
+
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch (_) {
+            throw new Error(
+              `Expected JSON from /api/flowise, got ${
+                contentType || "unknown content-type"
+              }: ${raw.slice(0, 120)}`
+            );
+          }
+
+          const aiText = normalizeMarkdownText(
+            data.text || data.answer || data.result || "No response"
+          );
+
+          let updatedChat = null;
+
+          setChats((prev) =>
+            prev.map((chat) => {
+              if (chat.id !== currentChatId) return chat;
+
+              updatedChat = {
+                ...chat,
+                messages: chat.messages.map((message) =>
+                  message.id === aiMessageId
+                    ? {
+                        ...message,
+                        text: aiText,
+                        isStreaming: false
+                      }
+                    : message
+                ),
+                title: isFirstMessage
+                  ? text.length > 30
+                    ? `${text.slice(0, 30)}...`
+                    : text
+                  : chat.title
+              };
+
+              return updatedChat;
+            })
+          );
+
+          if (updatedChat && isSignedIn) {
+            await persistChat(updatedChat);
+          }
+
+          return;
         }
 
-        const aiText = normalizeMarkdownText(
-          data.text || data.answer || data.result || "No response"
-        );
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        const applyPartialText = (partialText) => {
+          setChats((prev) =>
+            prev.map((chat) => {
+              if (chat.id !== currentChatId) return chat;
+
+              return {
+                ...chat,
+                messages: chat.messages.map((message) =>
+                  message.id === aiMessageId
+                    ? {
+                        ...message,
+                        text: partialText,
+                        isStreaming: true
+                      }
+                    : message
+                )
+              };
+            })
+          );
+        };
+
+        const processEventBlock = (eventBlock) => {
+          if (!eventBlock.trim()) return;
+
+          const { event, data } = parseSSEEvent(eventBlock);
+
+          if (!data && event !== "end") return;
+          if (event === "start") return;
+
+          if (event === "token" || event === "message") {
+            const chunk = normalizeMarkdownText(data);
+            fullText += chunk;
+            applyPartialText(fullText);
+            return;
+          }
+
+          if (event === "metadata" || event === "sourceDocuments") {
+            try {
+              finalMetadata = JSON.parse(data);
+            } catch (_) {
+              finalMetadata = data;
+            }
+            return;
+          }
+
+          if (event === "error") {
+            throw new Error(data || "Streaming error");
+          }
+
+          if (event === "end") {
+            streamEnded = true;
+          }
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          const eventBlocks = buffer.split("\n\n");
+          buffer = eventBlocks.pop() || "";
+
+          for (const block of eventBlocks) {
+            processEventBlock(block);
+            if (streamEnded) break;
+          }
+
+          if (streamEnded) {
+            try {
+              await reader.cancel();
+            } catch (_) {}
+            break;
+          }
+        }
+
+        buffer += decoder.decode();
+
+        if (!streamEnded && buffer.trim()) {
+          processEventBlock(buffer);
+        }
+
+        const finalText = normalizeMarkdownText(fullText) || "No response";
 
         let updatedChat = null;
 
@@ -1127,7 +1309,12 @@ export default function App() {
               ...chat,
               messages: chat.messages.map((message) =>
                 message.id === aiMessageId
-                  ? { ...message, text: aiText }
+                  ? {
+                      ...message,
+                      text: finalText,
+                      metadata: finalMetadata || message.metadata,
+                      isStreaming: false
+                    }
                   : message
               ),
               title: isFirstMessage
@@ -1159,7 +1346,8 @@ export default function App() {
                       ...message,
                       text: `Error generating response${
                         err?.message ? `: ${err.message}` : ""
-                      }`
+                      }`,
+                      isStreaming: false
                     }
                   : message
               )
@@ -1258,7 +1446,8 @@ export default function App() {
     const aiPlaceholderMessage = {
       id: aiMessageId,
       role: "ai",
-      text: ""
+      text: "",
+      isStreaming: true
     };
 
     let updatedChat = null;
@@ -1293,8 +1482,6 @@ export default function App() {
         await uploadFilesToFlowise(pendingUploads, currentChatId);
       }
 
-      setLoading(false);
-
       await handleUserMessage(
         userText,
         currentChatId,
@@ -1320,7 +1507,8 @@ export default function App() {
               message.id === aiMessageId
                 ? {
                     ...message,
-                    text: `Error${err?.message ? `: ${err.message}` : ""}`
+                    text: `Error${err?.message ? `: ${err.message}` : ""}`,
+                    isStreaming: false
                   }
                 : message
             )
@@ -1605,80 +1793,86 @@ export default function App() {
                           : styles.aiBubble)
                       }}
                     >
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          h1: ({ children }) => (
-                            <h1
-                              style={{
-                                ...markdownStyles.h1,
-                                ...(isMobile ? { fontSize: 22 } : {})
-                              }}
-                            >
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2
-                              style={{
-                                ...markdownStyles.h2,
-                                ...(isMobile ? { fontSize: 18 } : {})
-                              }}
-                            >
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3
-                              style={{
-                                ...markdownStyles.h3,
-                                ...(isMobile ? { fontSize: 15 } : {})
-                              }}
-                            >
-                              {children}
-                            </h3>
-                          ),
-                          p: ({ children }) => (
-                            <p style={markdownStyles.p}>{children}</p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul style={markdownStyles.ul}>{children}</ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol style={markdownStyles.ol}>{children}</ol>
-                          ),
-                          li: ({ children }) => (
-                            <li style={markdownStyles.li}>{children}</li>
-                          ),
-                          strong: ({ children }) => (
-                            <strong style={markdownStyles.strong}>
-                              {children}
-                            </strong>
-                          ),
-                          em: ({ children }) => (
-                            <em style={markdownStyles.em}>{children}</em>
-                          ),
-                          code({ inline, children }) {
-                            if (inline) {
+                      {m.role === "ai" && m.isStreaming ? (
+                        <div style={{ whiteSpace: "pre-wrap", color: "#111827" }}>
+                          {m.text}
+                        </div>
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({ children }) => (
+                              <h1
+                                style={{
+                                  ...markdownStyles.h1,
+                                  ...(isMobile ? { fontSize: 22 } : {})
+                                }}
+                              >
+                                {children}
+                              </h1>
+                            ),
+                            h2: ({ children }) => (
+                              <h2
+                                style={{
+                                  ...markdownStyles.h2,
+                                  ...(isMobile ? { fontSize: 18 } : {})
+                                }}
+                              >
+                                {children}
+                              </h2>
+                            ),
+                            h3: ({ children }) => (
+                              <h3
+                                style={{
+                                  ...markdownStyles.h3,
+                                  ...(isMobile ? { fontSize: 15 } : {})
+                                }}
+                              >
+                                {children}
+                              </h3>
+                            ),
+                            p: ({ children }) => (
+                              <p style={markdownStyles.p}>{children}</p>
+                            ),
+                            ul: ({ children }) => (
+                              <ul style={markdownStyles.ul}>{children}</ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol style={markdownStyles.ol}>{children}</ol>
+                            ),
+                            li: ({ children }) => (
+                              <li style={markdownStyles.li}>{children}</li>
+                            ),
+                            strong: ({ children }) => (
+                              <strong style={markdownStyles.strong}>
+                                {children}
+                              </strong>
+                            ),
+                            em: ({ children }) => (
+                              <em style={markdownStyles.em}>{children}</em>
+                            ),
+                            code({ inline, children }) {
+                              if (inline) {
+                                return (
+                                  <code style={markdownStyles.inlineCode}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+
                               return (
-                                <code style={markdownStyles.inlineCode}>
-                                  {children}
-                                </code>
+                                <pre style={markdownStyles.pre}>
+                                  <code style={markdownStyles.codeBlock}>
+                                    {children}
+                                  </code>
+                                </pre>
                               );
                             }
-
-                            return (
-                              <pre style={markdownStyles.pre}>
-                                <code style={markdownStyles.codeBlock}>
-                                  {children}
-                                </code>
-                              </pre>
-                            );
-                          }
-                        }}
-                      >
-                        {m.text}
-                      </ReactMarkdown>
+                          }}
+                        >
+                          {m.text}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
                 ))}
