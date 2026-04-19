@@ -1132,155 +1132,36 @@ export default function App() {
 
   const handleUserMessage = useCallback(
     async (text, currentChatId, isFirstMessage, aiMessageId) => {
-      let fullText = "";
-      let finalMetadata = null;
-
       try {
         const res = await fetch("/api/flowise", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Accept: "text/event-stream"
+            Accept: "application/json"
           },
           body: JSON.stringify({
             question: text,
             chatId: currentChatId,
-            streaming: true
+            streaming: false
           })
         });
 
+        const raw = await res.text();
+
         if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(errText || "Prediction request failed");
+          throw new Error(raw || "Prediction request failed");
         }
 
-        const contentType = res.headers.get("content-type") || "";
-
-        if (!contentType.includes("text/event-stream") || !res.body) {
-          const raw = await res.text();
-
-          let data;
-          try {
-            data = JSON.parse(raw);
-          } catch (_) {
-            throw new Error(
-              `Expected JSON from /api/flowise, got ${
-                contentType || "unknown content-type"
-              }: ${raw.slice(0, 120)}`
-            );
-          }
-
-          const aiText = normalizeMarkdownText(
-            data.text || data.answer || data.result || "No response"
-          );
-
-          let updatedChat = null;
-
-          setChats((prev) =>
-            prev.map((chat) => {
-              if (chat.id !== currentChatId) return chat;
-
-              updatedChat = {
-                ...chat,
-                messages: chat.messages.map((message) =>
-                  message.id === aiMessageId
-                    ? { ...message, text: aiText }
-                    : message
-                ),
-                title: isFirstMessage
-                  ? text.length > 30
-                    ? `${text.slice(0, 30)}...`
-                    : text
-                  : chat.title
-              };
-
-              return updatedChat;
-            })
-          );
-
-          if (updatedChat && isSignedIn) {
-            await persistChat(updatedChat);
-          }
-
-          return;
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (_) {
+          throw new Error(`Expected JSON, got: ${raw.slice(0, 200)}`);
         }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-
-        const applyPartialText = (partialText) => {
-          setChats((prev) =>
-            prev.map((chat) => {
-              if (chat.id !== currentChatId) return chat;
-
-              return {
-                ...chat,
-                messages: chat.messages.map((message) =>
-                  message.id === aiMessageId
-                    ? { ...message, text: partialText }
-                    : message
-                )
-              };
-            })
-          );
-        };
-
-        const processEventBlock = (eventBlock) => {
-          if (!eventBlock.trim()) return;
-
-          const { event, data } = parseSSEEvent(eventBlock);
-
-          if (!data && event !== "end") return;
-          if (event === "start") return;
-
-          if (event === "token" || event === "message") {
-            const chunk = normalizeMarkdownText(data);
-            fullText += chunk;
-            applyPartialText(fullText);
-            return;
-          }
-
-          if (event === "metadata" || event === "sourceDocuments") {
-            try {
-              finalMetadata = JSON.parse(data);
-            } catch (_) {
-              finalMetadata = data;
-            }
-            return;
-          }
-
-          if (event === "error") {
-            throw new Error(data || "Streaming error");
-          }
-
-          if (event === "end") {
-            return;
-          }
-        };
-
-        while (true) {
-          const { value, done } = await reader.read();
-
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          const eventBlocks = buffer.split("\n\n");
-          buffer = eventBlocks.pop() || "";
-
-          for (const block of eventBlocks) {
-            processEventBlock(block);
-          }
-        }
-
-        buffer += decoder.decode();
-
-        if (buffer.trim()) {
-          processEventBlock(buffer);
-        }
-
-        const finalText = normalizeMarkdownText(fullText) || "No response";
+        const aiText = normalizeMarkdownText(
+          data.text || data.answer || data.result || "No response"
+        );
 
         let updatedChat = null;
 
@@ -1292,11 +1173,7 @@ export default function App() {
               ...chat,
               messages: chat.messages.map((message) =>
                 message.id === aiMessageId
-                  ? {
-                      ...message,
-                      text: finalText,
-                      metadata: finalMetadata || message.metadata
-                    }
+                  ? { ...message, text: aiText }
                   : message
               ),
               title: isFirstMessage
