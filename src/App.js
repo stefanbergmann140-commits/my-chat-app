@@ -30,52 +30,6 @@ function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function parseSSEEvent(eventBlock) {
-  const lines = eventBlock.split("\n");
-  let explicitEvent = null;
-  const dataLines = [];
-
-  for (const line of lines) {
-    if (line.startsWith("event:")) {
-      explicitEvent = line.slice(6).trim();
-    } else if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5));
-    }
-  }
-
-  const rawData = dataLines.join("\n");
-
-  if (!rawData) {
-    return {
-      event: explicitEvent || "message",
-      data: ""
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(rawData);
-
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      typeof parsed.event === "string"
-    ) {
-      return {
-        event: parsed.event,
-        data:
-          typeof parsed.data === "string"
-            ? parsed.data
-            : JSON.stringify(parsed.data ?? "")
-      };
-    }
-  } catch (_) {}
-
-  return {
-    event: explicitEvent || "token",
-    data: rawData
-  };
-}
-
 function normalizeMarkdownText(text) {
   if (typeof text !== "string") return "";
 
