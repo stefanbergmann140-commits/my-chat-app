@@ -2,8 +2,8 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * ⚠️ WICHTIG:
- * Stripe braucht den RAW Body → bodyParser muss deaktiviert werden
+ * Wichtig für Stripe Webhooks:
+ * Der Raw Body muss unverändert gelesen werden.
  */
 export const config = {
   api: {
@@ -13,9 +13,6 @@ export const config = {
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-/**
- * Supabase Admin Client (Service Role Key!)
- */
 const supabaseAdmin = createClient(
   process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -27,9 +24,6 @@ const supabaseAdmin = createClient(
   }
 );
 
-/**
- * Raw Body lesen (für Stripe Signatur)
- */
 async function readRawBody(req) {
   const chunks = [];
 
@@ -45,10 +39,19 @@ export default async function handler(req, res) {
     return res.status(405).send("Method Not Allowed");
   }
 
-  // 🔴 Debug: prüfe ENV
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error("Missing STRIPE_SECRET_KEY");
+    return res.status(500).send("Missing STRIPE_SECRET_KEY");
+  }
+
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error("Missing STRIPE_WEBHOOK_SECRET");
-    return res.status(500).send("Webhook secret not configured");
+    return res.status(500).send("Missing STRIPE_WEBHOOK_SECRET");
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
+    return res.status(500).send("Missing SUPABASE_SERVICE_ROLE_KEY");
   }
 
   let event;
@@ -57,23 +60,24 @@ export default async function handler(req, res) {
     const rawBody = await readRawBody(req);
     const signature = req.headers["stripe-signature"];
 
+    if (!signature) {
+      return res.status(400).send("Missing stripe-signature header");
+    }
+
     event = stripe.webhooks.constructEvent(
       rawBody,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
 
-    console.log("✅ Stripe webhook received:", event.type);
+    console.log("Stripe webhook received:", event.type);
   } catch (err) {
-    console.error("❌ Webhook signature verification failed:", err.message);
+    console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   try {
     switch (event.type) {
-      /**
-       * 💳 Checkout abgeschlossen → Premium aktivieren
-       */
       case "checkout.session.completed": {
         const session = event.data.object;
 
@@ -81,76 +85,99 @@ export default async function handler(req, res) {
           const clerkUserId =
             session.client_reference_id || session.metadata?.clerk_user_id;
 
-          console.log("User from checkout:", clerkUserId);
+          console.log("Checkout completed for user:", clerkUserId);
 
-          if (clerkUserId) {
-            const { data, error } = await supabaseAdmin
-              .from("user_usage")
-              .upsert({
+          if (!clerkUserId) {
+            console.warn("No Clerk user ID found on checkout session");
+            break;
+          }
+
+          const { data, error } = await supabaseAdmin
+            .from("user_usage")
+            .upsert(
+              {
                 user_id: clerkUserId,
                 plan: "premium",
                 stripe_customer_id: session.customer || null,
                 stripe_subscription_id: session.subscription || null,
                 updated_at: new Date().toISOString()
-              });
+              },
+              {
+                onConflict: "user_id"
+              }
+            )
+            .select();
 
-            console.log("Supabase upsert result:", { data, error });
-
-            if (error) {
-              console.error("Supabase error:", error);
-            }
-          } else {
-            console.warn("⚠️ No Clerk user ID found in session");
+          if (error) {
+            console.error("Supabase upsert error on checkout completion:", error);
+            throw error;
           }
+
+          console.log("Supabase upsert success:", data);
         }
+
         break;
       }
 
-      /**
-       * 🔄 Subscription geändert / gelöscht
-       */
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
         const subscriptionStatus = subscription.status;
 
         const nextPlan =
-          subscriptionStatus === "active" ||
-          subscriptionStatus === "trialing"
+          subscriptionStatus === "active" || subscriptionStatus === "trialing"
             ? "premium"
             : "free";
 
-        console.log("Subscription status:", subscriptionStatus);
-        console.log("Setting plan:", nextPlan);
-
         const clerkUserId = subscription.metadata?.clerk_user_id || null;
 
+        console.log("Subscription event:", {
+          type: event.type,
+          subscriptionId: subscription.id,
+          status: subscriptionStatus,
+          nextPlan,
+          clerkUserId
+        });
+
         if (clerkUserId) {
-          const { error } = await supabaseAdmin
+          const { data, error } = await supabaseAdmin
             .from("user_usage")
-            .upsert({
-              user_id: clerkUserId,
-              plan: nextPlan,
-              stripe_customer_id: subscription.customer || null,
-              stripe_subscription_id: subscription.id || null,
-              updated_at: new Date().toISOString()
-            });
+            .upsert(
+              {
+                user_id: clerkUserId,
+                plan: nextPlan,
+                stripe_customer_id: subscription.customer || null,
+                stripe_subscription_id: subscription.id || null,
+                updated_at: new Date().toISOString()
+              },
+              {
+                onConflict: "user_id"
+              }
+            )
+            .select();
 
           if (error) {
-            console.error("Supabase update error:", error);
+            console.error("Supabase upsert error on subscription event:", error);
+            throw error;
           }
+
+          console.log("Supabase subscription upsert success:", data);
         } else {
-          const { error } = await supabaseAdmin
+          const { data, error } = await supabaseAdmin
             .from("user_usage")
             .update({
               plan: nextPlan,
               updated_at: new Date().toISOString()
             })
-            .eq("stripe_subscription_id", subscription.id);
+            .eq("stripe_subscription_id", subscription.id)
+            .select();
 
           if (error) {
-            console.error("Fallback update error:", error);
+            console.error("Fallback subscription update error:", error);
+            throw error;
           }
+
+          console.log("Fallback subscription update success:", data);
         }
 
         break;
@@ -163,7 +190,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("❌ stripe-webhook error", error);
+    console.error("stripe-webhook handler error:", error);
     return res.status(500).send("Webhook handler failed");
   }
 }

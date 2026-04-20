@@ -48,9 +48,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Optional: Clerk-Token serverseitig verifizieren.
-    // Für den ersten funktionierenden Stand kannst du den User notfalls
-    // auch aus req.body übergeben. Sauberer ist aber echte Verifizierung.
     let clerkUserId = null;
 
     try {
@@ -62,7 +59,7 @@ export default async function handler(req, res) {
         clerkUserId = payload.sub || null;
       }
     } catch (_) {
-      // Ignorieren, unten sauber behandeln
+      // unten sauber behandeln
     }
 
     if (!clerkUserId) {
@@ -87,6 +84,11 @@ export default async function handler(req, res) {
       client_reference_id: clerkUserId,
       metadata: {
         clerk_user_id: clerkUserId
+      },
+      subscription_data: {
+        metadata: {
+          clerk_user_id: clerkUserId
+        }
       },
       allow_promotion_codes: true
     });
