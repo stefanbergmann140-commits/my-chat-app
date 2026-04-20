@@ -9,7 +9,7 @@ import {
   useSession,
   useUser
 } from "@clerk/clerk-react";
-import headphones from "./assets/headphones.png";
+import edmaiLogo from "./assets/edmailogo.png";
 
 /* =========================
    CONFIG
@@ -205,7 +205,7 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
         ...headerStyles.header,
         ...(isMobile
           ? {
-              height: 72,
+              height: 74,
               padding: "0 14px"
             }
           : {})
@@ -224,20 +224,20 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
         ) : null}
 
         <div style={headerStyles.container}>
-          <h1
-            style={{
-              ...headerStyles.logo,
-              ...(isMobile ? { fontSize: 20 } : {})
-            }}
-          >
-            EDMAI
-          </h1>
           <img
-            src={headphones}
-            alt="Headphones"
+            src={edmaiLogo}
+            alt="EDMAI Logo"
             style={{
               ...headerStyles.logoImage,
-              ...(isMobile ? { height: 20 } : {})
+              ...(isMobile
+                ? {
+                    height: 34,
+                    maxWidth: 150
+                  }
+                : {
+                    height: 46,
+                    maxWidth: 220
+                  })
             }}
           />
         </div>
@@ -249,8 +249,9 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
             appearance={{
               elements: {
                 avatarBox: {
-                  width: isMobile ? 32 : 36,
-                  height: isMobile ? 32 : 36
+                  width: isMobile ? 34 : 38,
+                  height: isMobile ? 34 : 38,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.18)"
                 }
               }
             }}
@@ -279,51 +280,51 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
 
 const headerStyles = {
   header: {
-    height: 90,
+    height: 92,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    background: "#000",
-    borderBottom: "1px solid #111",
-    padding: "0 20px",
-    flexShrink: 0
+    background:
+      "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(8,8,8,1) 100%)",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    padding: "0 22px",
+    flexShrink: 0,
+    boxShadow: "0 8px 30px rgba(0,0,0,0.28)",
+    position: "relative",
+    zIndex: 10
   },
 
   leftArea: {
     display: "flex",
     alignItems: "center",
-    gap: 12
+    gap: 14
   },
 
   menuButton: {
-    border: "1px solid #2a2a2a",
-    background: "#111",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
     color: "#fff",
-    borderRadius: 8,
-    width: 36,
-    height: 36,
+    borderRadius: 10,
+    width: 38,
+    height: 38,
     cursor: "pointer",
-    fontSize: 18
+    fontSize: 18,
+    backdropFilter: "blur(8px)"
   },
 
   container: {
     display: "flex",
     alignItems: "center",
-    gap: 3
-  },
-
-  logo: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: "1px"
+    justifyContent: "flex-start",
+    padding: "6px 0"
   },
 
   logoImage: {
-    height: 24,
     width: "auto",
-    objectFit: "contain"
+    objectFit: "contain",
+    display: "block",
+    filter:
+      "drop-shadow(0 2px 10px rgba(255,255,255,0.06)) drop-shadow(0 8px 24px rgba(0,0,0,0.35))"
   },
 
   userArea: {
@@ -333,12 +334,15 @@ const headerStyles = {
 
   loginButton: {
     padding: "10px 16px",
-    borderRadius: 8,
-    border: "1px solid #2a2a2a",
-    background: "#fff",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(241,245,249,1) 100%)",
     color: "#111827",
     cursor: "pointer",
-    fontWeight: 600
+    fontWeight: 700,
+    letterSpacing: "0.2px",
+    boxShadow: "0 8px 22px rgba(0,0,0,0.22)"
   }
 };
 
@@ -902,6 +906,7 @@ export default function App() {
     const { data: inserted, error: insertError } = await supabase
       .from("user_usage")
       .insert({
+        user_id: user.id,
         message_count: 0,
         plan: "free"
       })
@@ -957,13 +962,14 @@ export default function App() {
   }, [supabase, isSignedIn, user?.id, usage, ensureUsageRow]);
 
   const loadChats = useCallback(async () => {
-    if (!supabase || !isSignedIn) return;
+    if (!supabase || !isSignedIn || !user?.id) return;
 
     setDbError("");
 
     const { data, error } = await supabase
       .from("chats")
       .select("id, user_id, title, messages, created_at, updated_at")
+      .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -988,6 +994,7 @@ export default function App() {
 
     const starterChat = {
       id: String(Date.now()),
+      user_id: user.id,
       title: "New Chat",
       messages: [],
       created_at: new Date().toISOString(),
@@ -1010,7 +1017,7 @@ export default function App() {
     setActiveChatId(inserted.id);
     setHasStarted(false);
     setDbReady(true);
-  }, [supabase, isSignedIn]);
+  }, [supabase, isSignedIn, user?.id]);
 
   useEffect(() => {
     const container = chatEndRef.current?.parentElement;
@@ -1131,10 +1138,11 @@ export default function App() {
 
   const persistChat = useCallback(
     async (chat) => {
-      if (!supabase || !isSignedIn || !chat) return;
+      if (!supabase || !isSignedIn || !user?.id || !chat) return;
 
       const payload = {
         id: chat.id,
+        user_id: user.id,
         title: chat.title || "New Chat",
         messages: chat.messages || [],
         updated_at: new Date().toISOString()
@@ -1152,7 +1160,7 @@ export default function App() {
 
       return data;
     },
-    [supabase, isSignedIn]
+    [supabase, isSignedIn, user?.id]
   );
 
   const handleUserMessage = useCallback(
@@ -1581,10 +1589,11 @@ export default function App() {
 
   const createNewChat = async () => {
     if (isSignedIn) {
-      if (!isLoaded || !supabase) return;
+      if (!isLoaded || !supabase || !user?.id) return;
 
       const newChat = {
         id: String(Date.now()),
+        user_id: user.id,
         title: "New Chat",
         messages: [],
         updated_at: new Date().toISOString()
@@ -1723,7 +1732,7 @@ export default function App() {
             ...(isMobile
               ? {
                   position: "fixed",
-                  top: 72,
+                  top: 74,
                   left: 0,
                   bottom: 0,
                   width: "86vw",
@@ -1920,23 +1929,20 @@ export default function App() {
                             em: ({ children }) => (
                               <em style={markdownStyles.em}>{children}</em>
                             ),
-                            code({ inline, children }) {
-                              if (inline) {
-                                return (
-                                  <code style={markdownStyles.inlineCode}>
-                                    {children}
-                                  </code>
-                                );
-                              }
-
+                            code({ children }) {
                               return (
-                                <pre style={markdownStyles.pre}>
-                                  <code style={markdownStyles.codeBlock}>
-                                    {children}
-                                  </code>
-                                </pre>
+                                <code style={markdownStyles.inlineCode}>
+                                  {children}
+                                </code>
                               );
-                            }
+                            },
+                            pre: ({ children }) => (
+                              <pre style={markdownStyles.pre}>
+                                <code style={markdownStyles.codeBlock}>
+                                  {children}
+                                </code>
+                              </pre>
+                            )
                           }}
                         >
                           {m.text}
@@ -2173,18 +2179,19 @@ const styles = {
     width: "100%",
     padding: 10,
     marginBottom: 2,
-    borderRadius: 6,
+    borderRadius: 8,
     border: "1px solid #d1d5db",
     background: "#fff",
     cursor: "pointer",
-    fontWeight: 600,
-    color: "#111827"
+    fontWeight: 700,
+    color: "#111827",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.04)"
   },
 
   searchInput: {
     width: "100%",
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     border: "1px solid #d1d5db",
     outline: "none",
     boxSizing: "border-box",
@@ -2209,7 +2216,7 @@ const styles = {
 
   chatItem: {
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     cursor: "pointer",
     marginBottom: 6,
     border: "1px solid transparent"
@@ -2256,7 +2263,7 @@ const styles = {
   bubble: {
     maxWidth: 700,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     border: "1px solid #e5e7eb",
     wordBreak: "break-word"
   },
@@ -2290,7 +2297,7 @@ const styles = {
     gap: 8,
     padding: 10,
     border: "1px solid #e5e7eb",
-    borderRadius: 10,
+    borderRadius: 12,
     background: "#fff"
   },
 
@@ -2329,10 +2336,11 @@ const styles = {
     gap: 10,
     padding: 10,
     border: "1px solid #e5e7eb",
-    borderRadius: 10,
+    borderRadius: 12,
     background: "#fff",
     width: "100%",
-    alignItems: "center"
+    alignItems: "center",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.04)"
   },
 
   input: {
@@ -2346,12 +2354,13 @@ const styles = {
 
   button: {
     padding: "10px 14px",
-    borderRadius: 8,
+    borderRadius: 10,
     border: "1px solid #111827",
     background: "#111827",
     color: "#fff",
     cursor: "pointer",
-    fontWeight: 600
+    fontWeight: 700,
+    boxShadow: "0 8px 18px rgba(17,24,39,0.18)"
   },
 
   iconButton: {
