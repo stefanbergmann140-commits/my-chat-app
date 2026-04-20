@@ -231,12 +231,12 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
               ...headerStyles.logoImage,
               ...(isMobile
                 ? {
-                    height: 34,
-                    maxWidth: 150
+                    height: 68,
+                    maxWidth: 300
                   }
                 : {
-                    height: 46,
-                    maxWidth: 220
+                    height: 92,
+                    maxWidth: 440
                   })
             }}
           />
