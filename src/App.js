@@ -425,7 +425,14 @@ function Footer({ isMobile }) {
             {activeSection === "about" && (
               <div>
                 <h3 style={footerStyles.title}>About us</h3>
-                <p style={footerStyles.text}></p>
+                <p style={footerStyles.text}>                                
+EDMAI is an expert AI mentor in electronic music production, specializing in EDM genres including Techno, Trance, House, Future Bass, Trap, Chill Trap, Melodic Bass, and modern electronic production and so on. 
+It helps you to help improve your production through technically accurate, practical, and actionable guidance based on a producer database. 
+
+
+
+
+                </p>
               </div>
             )}
 
@@ -2056,7 +2063,7 @@ export default function App() {
                       autoFocus
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="What problem are you facing right now producing EDM?"
+                      placeholder="Which challenge are you facing right now producing EDM?"
                       style={{
                         ...styles.input,
                         ...(isMobile
