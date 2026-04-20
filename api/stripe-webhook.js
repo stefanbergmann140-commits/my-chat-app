@@ -1,8 +1,21 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * ⚠️ WICHTIG:
+ * Stripe braucht den RAW Body → bodyParser muss deaktiviert werden
+ */
+export const config = {
+  api: {
+    bodyParser: false
+  }
+};
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+/**
+ * Supabase Admin Client (Service Role Key!)
+ */
 const supabaseAdmin = createClient(
   process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -14,6 +27,9 @@ const supabaseAdmin = createClient(
   }
 );
 
+/**
+ * Raw Body lesen (für Stripe Signatur)
+ */
 async function readRawBody(req) {
   const chunks = [];
 
@@ -29,6 +45,12 @@ export default async function handler(req, res) {
     return res.status(405).send("Method Not Allowed");
   }
 
+  // 🔴 Debug: prüfe ENV
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("Missing STRIPE_WEBHOOK_SECRET");
+    return res.status(500).send("Webhook secret not configured");
+  }
+
   let event;
 
   try {
@@ -40,13 +62,18 @@ export default async function handler(req, res) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+
+    console.log("✅ Stripe webhook received:", event.type);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
+    console.error("❌ Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   try {
     switch (event.type) {
+      /**
+       * 💳 Checkout abgeschlossen → Premium aktivieren
+       */
       case "checkout.session.completed": {
         const session = event.data.object;
 
@@ -54,33 +81,52 @@ export default async function handler(req, res) {
           const clerkUserId =
             session.client_reference_id || session.metadata?.clerk_user_id;
 
+          console.log("User from checkout:", clerkUserId);
+
           if (clerkUserId) {
-            await supabaseAdmin.from("user_usage").upsert({
-              user_id: clerkUserId,
-              plan: "premium",
-              stripe_customer_id: session.customer || null,
-              stripe_subscription_id: session.subscription || null,
-              updated_at: new Date().toISOString()
-            });
+            const { data, error } = await supabaseAdmin
+              .from("user_usage")
+              .upsert({
+                user_id: clerkUserId,
+                plan: "premium",
+                stripe_customer_id: session.customer || null,
+                stripe_subscription_id: session.subscription || null,
+                updated_at: new Date().toISOString()
+              });
+
+            console.log("Supabase upsert result:", { data, error });
+
+            if (error) {
+              console.error("Supabase error:", error);
+            }
+          } else {
+            console.warn("⚠️ No Clerk user ID found in session");
           }
         }
         break;
       }
 
+      /**
+       * 🔄 Subscription geändert / gelöscht
+       */
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
         const subscriptionStatus = subscription.status;
 
         const nextPlan =
-          subscriptionStatus === "active" || subscriptionStatus === "trialing"
+          subscriptionStatus === "active" ||
+          subscriptionStatus === "trialing"
             ? "premium"
             : "free";
+
+        console.log("Subscription status:", subscriptionStatus);
+        console.log("Setting plan:", nextPlan);
 
         const clerkUserId = subscription.metadata?.clerk_user_id || null;
 
         if (clerkUserId) {
-          await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from("user_usage")
             .upsert({
               user_id: clerkUserId,
@@ -89,26 +135,35 @@ export default async function handler(req, res) {
               stripe_subscription_id: subscription.id || null,
               updated_at: new Date().toISOString()
             });
+
+          if (error) {
+            console.error("Supabase update error:", error);
+          }
         } else {
-          await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from("user_usage")
             .update({
               plan: nextPlan,
               updated_at: new Date().toISOString()
             })
             .eq("stripe_subscription_id", subscription.id);
+
+          if (error) {
+            console.error("Fallback update error:", error);
+          }
         }
 
         break;
       }
 
       default:
+        console.log("Unhandled event type:", event.type);
         break;
     }
 
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("stripe-webhook error", error);
+    console.error("❌ stripe-webhook error", error);
     return res.status(500).send("Webhook handler failed");
   }
 }
