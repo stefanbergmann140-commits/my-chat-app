@@ -22,7 +22,7 @@ const SUPABASE_JWT_TEMPLATE = "supabase";
 
 const GUEST_LOGIN_PROMPT_AFTER = 5;
 const FREE_MESSAGE_LIMIT = 20;
-const GUEST_MESSAGE_LIMIT = 20;
+const GUEST_MESSAGE_LIMIT = 10;
 const MOBILE_BREAKPOINT = 768;
 
 const GUEST_STORAGE_KEY = "edmai_guest_message_count";
