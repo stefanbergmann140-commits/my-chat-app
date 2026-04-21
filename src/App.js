@@ -2039,7 +2039,7 @@ export default function App() {
                   );
                 })}
 
-                {loading && !activeChat?.messages.some((m) => m.isStreaming) && (
+                {loading && !activeChat?.messages.some((m) => m.isStreaming && m.text?.trim()) && (
                   <div style={styles.typingBubbleWrap}>
                     <div style={styles.typingBubbleContainer}>
                       <span
