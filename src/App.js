@@ -432,7 +432,7 @@ function Footer({ isMobile }) {
                   EDMAI is an expert AI mentor in electronic music production,
                   specializing in EDM genres including Techno, Trance, House,
                   Future Bass, Trap, Chill Trap, Melodic Bass, and modern
-                  electronic production and so on. It helps you to help improve
+                  electronic production and so on. It helps you to improve
                   your production through technically accurate, practical, and
                   actionable guidance based on a producer database.
                 </p>
