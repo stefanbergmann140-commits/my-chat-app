@@ -1919,117 +1919,125 @@ export default function App() {
                   ...(isMobile ? { padding: 8 } : {})
                 }}
               >
-                {activeChat?.messages.map((m, i) => (
-                  <div
-                    key={m.id || i}
-                    style={{
-                      display: "flex",
-                      justifyContent:
-                        m.role === "user" ? "flex-end" : "flex-start",
-                      padding: isMobile ? 6 : 10
-                    }}
-                  >
+                {activeChat?.messages.map((m, i) => {
+                  if (m.role === "ai" && m.isStreaming && !m.text) {
+                    return null;
+                  }
+
+                  return (
                     <div
+                      key={m.id || i}
                       style={{
-                        ...bubbleStyles,
-                        ...(m.role === "user"
-                          ? styles.userBubble
-                          : styles.aiBubble),
-                        ...(m.role === "ai" && m.isStreaming
-                          ? {
-                              boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-                              opacity: 0.98
-                            }
-                          : {})
+                        display: "flex",
+                        justifyContent:
+                          m.role === "user" ? "flex-end" : "flex-start",
+                        padding: isMobile ? 6 : 10
                       }}
                     >
-                      {m.role === "ai" && m.isStreaming ? (
-                        <div style={{ lineHeight: 1.65 }}>
-                          <Streamdown parseIncompleteMarkdown smoothScroll={false}>
-                            {m.text}
-                          </Streamdown>
-                          <span style={styles.streamingCursor}>▋</span>
-                        </div>
-                      ) : (
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => (
-                              <h1
-                                style={{
-                                  ...markdownStyles.h1,
-                                  ...(isMobile ? { fontSize: 22 } : {})
-                                }}
-                              >
-                                {children}
-                              </h1>
-                            ),
-                            h2: ({ children }) => (
-                              <h2
-                                style={{
-                                  ...markdownStyles.h2,
-                                  ...(isMobile ? { fontSize: 18 } : {})
-                                }}
-                              >
-                                {children}
-                              </h2>
-                            ),
-                            h3: ({ children }) => (
-                              <h3
-                                style={{
-                                  ...markdownStyles.h3,
-                                  ...(isMobile ? { fontSize: 15 } : {})
-                                }}
-                              >
-                                {children}
-                              </h3>
-                            ),
-                            p: ({ children }) => (
-                              <p style={markdownStyles.p}>{children}</p>
-                            ),
-                            ul: ({ children }) => (
-                              <ul style={markdownStyles.ul}>{children}</ul>
-                            ),
-                            ol: ({ children }) => (
-                              <ol style={markdownStyles.ol}>{children}</ol>
-                            ),
-                            li: ({ children }) => (
-                              <li style={markdownStyles.li}>{children}</li>
-                            ),
-                            strong: ({ children }) => (
-                              <strong style={markdownStyles.strong}>
-                                {children}
-                              </strong>
-                            ),
-                            em: ({ children }) => (
-                              <em style={markdownStyles.em}>{children}</em>
-                            ),
-                            code({ inline, children, ...props }) {
-                              if (inline) {
+                      <div
+                        style={{
+                          ...bubbleStyles,
+                          ...(m.role === "user"
+                            ? styles.userBubble
+                            : styles.aiBubble),
+                          ...(m.role === "ai" && m.isStreaming
+                            ? {
+                                boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                                opacity: 0.98
+                              }
+                            : {})
+                        }}
+                      >
+                        {m.role === "ai" && m.isStreaming ? (
+                          m.text ? (
+                            <div style={{ lineHeight: 1.65 }}>
+                              <Streamdown parseIncompleteMarkdown smoothScroll={false}>
+                                {m.text}
+                              </Streamdown>
+                              <span style={styles.streamingCursor}>▋</span>
+                            </div>
+                          ) : null
+                        ) : (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              h1: ({ children }) => (
+                                <h1
+                                  style={{
+                                    ...markdownStyles.h1,
+                                    ...(isMobile ? { fontSize: 22 } : {})
+                                  }}
+                                >
+                                  {children}
+                                </h1>
+                              ),
+                              h2: ({ children }) => (
+                                <h2
+                                  style={{
+                                    ...markdownStyles.h2,
+                                    ...(isMobile ? { fontSize: 18 } : {})
+                                  }}
+                                >
+                                  {children}
+                                </h2>
+                              ),
+                              h3: ({ children }) => (
+                                <h3
+                                  style={{
+                                    ...markdownStyles.h3,
+                                    ...(isMobile ? { fontSize: 15 } : {})
+                                  }}
+                                >
+                                  {children}
+                                </h3>
+                              ),
+                              p: ({ children }) => (
+                                <p style={markdownStyles.p}>{children}</p>
+                              ),
+                              ul: ({ children }) => (
+                                <ul style={markdownStyles.ul}>{children}</ul>
+                              ),
+                              ol: ({ children }) => (
+                                <ol style={markdownStyles.ol}>{children}</ol>
+                              ),
+                              li: ({ children }) => (
+                                <li style={markdownStyles.li}>{children}</li>
+                              ),
+                              strong: ({ children }) => (
+                                <strong style={markdownStyles.strong}>
+                                  {children}
+                                </strong>
+                              ),
+                              em: ({ children }) => (
+                                <em style={markdownStyles.em}>{children}</em>
+                              ),
+                              code({ inline, children, ...props }) {
+                                if (inline) {
+                                  return (
+                                    <code style={markdownStyles.inlineCode} {...props}>
+                                      {children}
+                                    </code>
+                                  );
+                                }
+
                                 return (
-                                  <code style={markdownStyles.inlineCode} {...props}>
+                                  <code style={markdownStyles.codeBlock} {...props}>
                                     {children}
                                   </code>
                                 );
-                              }
-
-                              return (
-                                <code style={markdownStyles.codeBlock} {...props}>
-                                  {children}
-                                </code>
-                              );
-                            },
-                            pre: ({ children }) => (
-                              <pre style={markdownStyles.pre}>{children}</pre>
-                            )
-                          }}
-                        >
-                          {m.text}
-                        </ReactMarkdown>
-                      )}
+                              },
+                              pre: ({ children }) => (
+                                <pre style={markdownStyles.pre}>{children}</pre>
+                              )
+                            }}
+                          >
+                            {m.text}
+                          </ReactMarkdown>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {loading && !activeChat?.messages.some((m) => m.isStreaming) && (
                   <div style={styles.typingBubbleWrap}>
