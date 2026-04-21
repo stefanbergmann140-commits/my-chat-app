@@ -22,7 +22,10 @@ const SUPABASE_JWT_TEMPLATE = "supabase";
 
 const GUEST_LOGIN_PROMPT_AFTER = 5;
 const FREE_MESSAGE_LIMIT = 20;
+const GUEST_MESSAGE_LIMIT = 20;
 const MOBILE_BREAKPOINT = 768;
+
+const GUEST_STORAGE_KEY = "edmai_guest_message_count";
 
 /* =========================
    HELPERS
@@ -425,13 +428,13 @@ function Footer({ isMobile }) {
             {activeSection === "about" && (
               <div>
                 <h3 style={footerStyles.title}>About us</h3>
-                <p style={footerStyles.text}>                                
-EDMAI is an expert AI mentor in electronic music production, specializing in EDM genres including Techno, Trance, House, Future Bass, Trap, Chill Trap, Melodic Bass, and modern electronic production and so on. 
-It helps you to help improve your production through technically accurate, practical, and actionable guidance based on a producer database. 
-
-
-
-
+                <p style={footerStyles.text}>
+                  EDMAI is an expert AI mentor in electronic music production,
+                  specializing in EDM genres including Techno, Trance, House,
+                  Future Bass, Trap, Chill Trap, Melodic Bass, and modern
+                  electronic production and so on. It helps you to help improve
+                  your production through technically accurate, practical, and
+                  actionable guidance based on a producer database.
                 </p>
               </div>
             )}
@@ -642,6 +645,7 @@ It helps you to help improve your production through technically accurate, pract
                   <br />
                   40231 Düsseldorf
                   <br />
+                  Germany
                   <br />
                   info@edmai.net
                 </p>
@@ -822,14 +826,18 @@ export default function App() {
   );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [pendingUploads, setPendingUploads] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState("");
-  const [guestMessageCount, setGuestMessageCount] = useState(0);
+  const [guestMessageCount, setGuestMessageCount] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const saved = window.localStorage.getItem(GUEST_STORAGE_KEY);
+    const parsed = Number(saved);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  });
   const [usage, setUsage] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
@@ -839,6 +847,9 @@ export default function App() {
   const inputRef = useRef(null);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
+
+  const hasStarted =
+    (activeChat?.messages?.length || 0) > 0 || pendingUploads.length > 0;
 
   const filteredChats = useMemo(() => {
     const query = sessionSearch.trim().toLowerCase();
@@ -857,13 +868,18 @@ export default function App() {
   }, [chats, sessionSearch]);
 
   const shouldShowGuestLoginHint =
-    !isSignedIn && guestMessageCount >= GUEST_LOGIN_PROMPT_AFTER;
+    !isSignedIn &&
+    guestMessageCount >= GUEST_LOGIN_PROMPT_AFTER &&
+    guestMessageCount < GUEST_MESSAGE_LIMIT;
 
   const hasReachedFreeLimit =
     isSignedIn &&
     usage &&
     usage.plan !== "premium" &&
     usage.message_count >= FREE_MESSAGE_LIMIT;
+
+  const hasReachedGuestLimit =
+    !isSignedIn && guestMessageCount >= GUEST_MESSAGE_LIMIT;
 
   const bubbleStyles = useMemo(
     () => ({
@@ -878,6 +894,11 @@ export default function App() {
     }),
     [isMobile]
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(GUEST_STORAGE_KEY, String(guestMessageCount));
+  }, [guestMessageCount]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -990,11 +1011,6 @@ export default function App() {
     if (safeChats.length > 0) {
       setChats(safeChats);
       setActiveChatId(safeChats[0].id);
-      setHasStarted(
-        safeChats.some(
-          (chat) => Array.isArray(chat.messages) && chat.messages.length > 0
-        )
-      );
       setDbReady(true);
       return;
     }
@@ -1022,7 +1038,6 @@ export default function App() {
 
     setChats([inserted]);
     setActiveChatId(inserted.id);
-    setHasStarted(false);
     setDbReady(true);
   }, [supabase, isSignedIn, user?.id]);
 
@@ -1111,13 +1126,11 @@ export default function App() {
 
       setChats([{ id: freshGuestId, title: "New Chat", messages: [] }]);
       setActiveChatId(freshGuestId);
-      setHasStarted(false);
       setDbReady(false);
       setDbError("");
       setPendingUploads([]);
       setSessionSearch("");
       setUsage(null);
-      setGuestMessageCount(0);
     }
   }, [isLoaded, isSignedIn, supabase, loadChats, loadUsage]);
 
@@ -1475,7 +1488,12 @@ export default function App() {
       return;
     }
 
-    if (!hasStarted) setHasStarted(true);
+    if (hasReachedGuestLimit) {
+      alert(
+        "Du hast dein Gratis-Limit erreicht. Bitte logge dich ein, um weiter chatten zu können."
+      );
+      return;
+    }
 
     const userText =
       input.trim() ||
@@ -1619,7 +1637,6 @@ export default function App() {
 
         setChats((prev) => [data, ...prev]);
         setActiveChatId(data.id);
-        setHasStarted(false);
         setInput("");
         setPendingUploads([]);
         if (isMobile) setSidebarOpen(false);
@@ -1639,10 +1656,8 @@ export default function App() {
 
     setChats([{ id: newGuestId, title: "New Chat", messages: [] }]);
     setActiveChatId(newGuestId);
-    setHasStarted(false);
     setInput("");
     setPendingUploads([]);
-    setGuestMessageCount(0);
 
     if (isMobile) setSidebarOpen(false);
 
@@ -1668,6 +1683,16 @@ export default function App() {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
 
+    if (hasReachedGuestLimit) {
+      alert(
+        "Du hast dein Gratis-Limit erreicht. Bitte logge dich ein, um weiter chatten zu können."
+      );
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     setPendingUploads((prev) => {
       const existingKeys = new Set(prev.map((f) => `${f.name}-${f.size}`));
 
@@ -1677,8 +1702,6 @@ export default function App() {
 
       return [...prev, ...nextFiles];
     });
-
-    if (!hasStarted) setHasStarted(true);
 
     setTimeout(() => {
       inputRef.current?.focus();
@@ -1789,9 +1812,9 @@ export default function App() {
 
           {!isSignedIn ? (
             <div style={styles.infoBox}>
-              Chat, voice input, and file upload are free to try. Guest chats
-              start fresh after each page reload. Log in to save and search your
-              chats.
+              {hasReachedGuestLimit
+                ? `Du hast alle ${GUEST_MESSAGE_LIMIT} Gast-Anfragen verbraucht. Bitte logge dich ein, um weiter chatten zu können.`
+                : `Chat, voice input, and file upload are free to try. Guest chats start fresh after each page reload. You can use up to ${GUEST_MESSAGE_LIMIT} guest messages. Log in to save and search your chats.`}
             </div>
           ) : null}
 
@@ -1800,6 +1823,12 @@ export default function App() {
               {usage.plan === "premium"
                 ? "Premium active"
                 : `${usage.message_count} / ${FREE_MESSAGE_LIMIT} free messages used`}
+            </div>
+          ) : null}
+
+          {!isSignedIn ? (
+            <div style={styles.usageBox}>
+              {guestMessageCount} / {GUEST_MESSAGE_LIMIT} guest messages used
             </div>
           ) : null}
 
@@ -1866,7 +1895,9 @@ export default function App() {
                     <div
                       style={{
                         ...bubbleStyles,
-                        ...(m.role === "user" ? styles.userBubble : styles.aiBubble),
+                        ...(m.role === "user"
+                          ? styles.userBubble
+                          : styles.aiBubble),
                         ...(m.role === "ai" && m.isStreaming
                           ? {
                               boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
@@ -1936,19 +1967,23 @@ export default function App() {
                             em: ({ children }) => (
                               <em style={markdownStyles.em}>{children}</em>
                             ),
-                            code({ children }) {
+                            code({ inline, children, ...props }) {
+                              if (inline) {
+                                return (
+                                  <code style={markdownStyles.inlineCode} {...props}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+
                               return (
-                                <code style={markdownStyles.inlineCode}>
+                                <code style={markdownStyles.codeBlock} {...props}>
                                   {children}
                                 </code>
                               );
                             },
                             pre: ({ children }) => (
-                              <pre style={markdownStyles.pre}>
-                                <code style={markdownStyles.codeBlock}>
-                                  {children}
-                                </code>
-                              </pre>
+                              <pre style={markdownStyles.pre}>{children}</pre>
                             )
                           }}
                         >
@@ -1959,7 +1994,7 @@ export default function App() {
                   </div>
                 ))}
 
-                {loading && (
+                {loading && !activeChat?.messages.some((m) => m.isStreaming) && (
                   <div style={styles.typingRow}>
                     <div style={styles.typingDots}>
                       <span style={styles.typingDot} />
@@ -1987,6 +2022,19 @@ export default function App() {
                   </div>
                 ) : null}
 
+                {hasReachedGuestLimit ? (
+                  <div style={styles.paywallCard}>
+                    <div style={styles.paywallTitle}>Guest limit reached</div>
+                    <div style={styles.paywallText}>
+                      You have used all {GUEST_MESSAGE_LIMIT} guest messages.
+                      Please log in to continue chatting.
+                    </div>
+                    <SignInButton mode="modal">
+                      <button style={styles.paywallButton}>Log in now</button>
+                    </SignInButton>
+                  </div>
+                ) : null}
+
                 {hasReachedFreeLimit ? (
                   <div style={styles.paywallCard}>
                     <div style={styles.paywallTitle}>Free limit reached</div>
@@ -2001,7 +2049,7 @@ export default function App() {
                     >
                       {checkoutLoading
                         ? "Redirecting..."
-                        : "Upgrade to Premium — €0.99/month"}
+                        : "Upgrade to Premium — €2.99/month"}
                     </button>
                   </div>
                 ) : null}
@@ -2063,9 +2111,15 @@ export default function App() {
                       autoFocus
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Which challenge are you facing right now producing EDM?"
+                      placeholder={
+                        hasReachedGuestLimit
+                          ? "Bitte logge dich ein, um weiter zu chatten"
+                          : "Which challenge are you facing right now producing EDM?"
+                      }
+                      disabled={hasReachedGuestLimit}
                       style={{
                         ...styles.input,
+                        ...(hasReachedGuestLimit ? styles.disabledButton : {}),
                         ...(isMobile
                           ? {
                               minWidth: "100%",
@@ -2091,10 +2145,11 @@ export default function App() {
                           ...styles.iconButton,
                           ...(isRecording ? styles.recordingButton : {}),
                           ...(speechSupported ? {} : styles.disabledButton),
+                          ...(hasReachedGuestLimit ? styles.disabledButton : {}),
                           ...(isMobile ? { flex: 1 } : {})
                         }}
                         title="Voice input"
-                        disabled={!speechSupported}
+                        disabled={!speechSupported || hasReachedGuestLimit}
                         aria-label="Voice input"
                       >
                         <MicrophoneIcon size={18} />
@@ -2102,14 +2157,22 @@ export default function App() {
 
                       <button
                         onClick={() => {
+                          if (hasReachedGuestLimit) {
+                            alert(
+                              "Du hast dein Gratis-Limit erreicht. Bitte logge dich ein, um weiter chatten zu können."
+                            );
+                            return;
+                          }
                           fileInputRef.current?.click();
                         }}
                         style={{
                           ...styles.iconButton,
+                          ...(hasReachedGuestLimit ? styles.disabledButton : {}),
                           ...(isMobile ? { flex: 1 } : {})
                         }}
                         title="Upload file"
                         aria-label="Upload file"
+                        disabled={hasReachedGuestLimit}
                       >
                         <PaperclipIcon size={18} />
                       </button>
@@ -2124,8 +2187,10 @@ export default function App() {
 
                       <button
                         onClick={sendMessage}
+                        disabled={hasReachedGuestLimit}
                         style={{
                           ...styles.button,
+                          ...(hasReachedGuestLimit ? styles.disabledButton : {}),
                           ...(isMobile ? { flex: 2 } : {})
                         }}
                       >
