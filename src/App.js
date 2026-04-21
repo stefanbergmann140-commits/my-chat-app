@@ -914,6 +914,43 @@ export default function App() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  useEffect(() => {
+    const styleId = "edmai-typing-bubbles-keyframes";
+
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.innerHTML = `
+      @keyframes edmaiPulse {
+        0%, 80%, 100% {
+          transform: scale(0.6);
+          opacity: 0.4;
+        }
+        40% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+      }
+
+      @keyframes edmaiFloat {
+        0%, 100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-3px);
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
+
+    return () => {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
+
   const ensureUsageRow = useCallback(async () => {
     if (!supabase || !isSignedIn || !user?.id) return null;
 
@@ -1995,11 +2032,26 @@ export default function App() {
                 ))}
 
                 {loading && !activeChat?.messages.some((m) => m.isStreaming) && (
-                  <div style={styles.typingRow}>
-                    <div style={styles.typingDots}>
-                      <span style={styles.typingDot} />
-                      <span style={styles.typingDot} />
-                      <span style={styles.typingDot} />
+                  <div style={styles.typingBubbleWrap}>
+                    <div style={styles.typingBubbleContainer}>
+                      <span
+                        style={{
+                          ...styles.typingBubbleDot,
+                          animationDelay: "0s"
+                        }}
+                      />
+                      <span
+                        style={{
+                          ...styles.typingBubbleDot,
+                          animationDelay: "0.15s"
+                        }}
+                      />
+                      <span
+                        style={{
+                          ...styles.typingBubbleDot,
+                          animationDelay: "0.3s"
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -2328,24 +2380,34 @@ const styles = {
   },
 
   chatArea: {
-    padding: 10,
-    minHeight: 0
+    padding: 14,
+    minHeight: 0,
+    background: "linear-gradient(180deg, #ffffff 0%, #fafafa 100%)"
   },
 
   bubble: {
     maxWidth: 700,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 22,
     border: "1px solid #e5e7eb",
-    wordBreak: "break-word"
+    wordBreak: "break-word",
+    lineHeight: 1.6
   },
 
   userBubble: {
-    background: "#f3f4f6"
+    background: "linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 100%)",
+    color: "#111827",
+    borderRadius: 22,
+    border: "1px solid rgba(209,213,219,0.9)",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.04)"
   },
 
   aiBubble: {
-    background: "#fff",
+    background: "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)",
+    color: "#111827",
+    borderRadius: 22,
+    border: "1px solid rgba(229,231,235,0.95)",
+    boxShadow: "0 8px 22px rgba(0,0,0,0.05)",
     transition: "box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease"
   },
 
@@ -2407,39 +2469,41 @@ const styles = {
     display: "flex",
     gap: 10,
     padding: 10,
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    background: "#fff",
+    border: "1px solid rgba(229,231,235,0.95)",
+    borderRadius: 18,
+    background: "linear-gradient(180deg, #ffffff 0%, #fafafa 100%)",
     width: "100%",
     alignItems: "center",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.04)"
+    boxShadow: "0 10px 28px rgba(0,0,0,0.05)"
   },
 
   input: {
     flex: 1,
-    padding: 10,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 12,
     border: "1px solid #d1d5db",
     outline: "none",
-    minWidth: 0
+    minWidth: 0,
+    background: "#ffffff",
+    color: "#111827"
   },
 
   button: {
-    padding: "10px 14px",
-    borderRadius: 10,
+    padding: "10px 16px",
+    borderRadius: 12,
     border: "1px solid #111827",
-    background: "#111827",
+    background: "linear-gradient(180deg, #111827 0%, #000000 100%)",
     color: "#fff",
     cursor: "pointer",
     fontWeight: 700,
-    boxShadow: "0 8px 18px rgba(17,24,39,0.18)"
+    boxShadow: "0 10px 22px rgba(17,24,39,0.18)"
   },
 
   iconButton: {
     padding: "10px 12px",
     borderRadius: 999,
-    border: "1px solid #e5e7eb",
-    background: "#f9fafb",
+    border: "1px solid rgba(229,231,235,0.95)",
+    background: "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)",
     color: "#374151",
     cursor: "pointer",
     fontSize: 16,
@@ -2448,7 +2512,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.04)"
   },
 
   recordingButton: {
@@ -2489,28 +2554,32 @@ const styles = {
     color: "#6b7280"
   },
 
-  typingRow: {
+  typingBubbleWrap: {
     padding: 10,
     display: "flex",
     justifyContent: "flex-start"
   },
 
-  typingDots: {
+  typingBubbleContainer: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
-    padding: "10px 12px",
+    gap: 10,
+    padding: "14px 16px",
     borderRadius: 999,
-    border: "1px solid #e5e7eb",
-    background: "#fff"
+    border: "1px solid rgba(0,0,0,0.06)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,245,245,0.9))",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+    animation: "edmaiFloat 3s ease-in-out infinite"
   },
 
-  typingDot: {
-    width: 6,
-    height: 6,
+  typingBubbleDot: {
+    width: 10,
+    height: 10,
     borderRadius: "50%",
-    background: "#9ca3af",
-    display: "inline-block"
+    background: "linear-gradient(180deg, #9ca3af, #6b7280)",
+    display: "inline-block",
+    animation: "edmaiPulse 1.4s infinite ease-in-out"
   },
 
   streamingCursor: {
