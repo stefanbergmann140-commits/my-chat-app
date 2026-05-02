@@ -421,7 +421,7 @@ function Footer({ isMobile }) {
             {activeSection === "support" && (
               <div>
                 <h3 style={footerStyles.title}>Support</h3>
-                <p style={footerStyles.text}>info@edmai.net</p>
+                <p style={footerStyles.text}>info@edmai.chat</p>
               </div>
             )}
 
@@ -647,7 +647,7 @@ function Footer({ isMobile }) {
                   <br />
                   Germany
                   <br />
-                  info@edmai.net
+                  info@edmai.chat
                 </p>
               </div>
             )}
