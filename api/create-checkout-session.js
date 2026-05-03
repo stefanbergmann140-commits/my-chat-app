@@ -71,11 +71,6 @@ export default async function handler(req, res) {
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
 
-      // ✅ Stripe zeigt automatisch verfügbare Zahlungsmethoden an
-      automatic_payment_methods: {
-        enabled: true
-      },
-
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID,
