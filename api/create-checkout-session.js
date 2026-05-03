@@ -42,6 +42,7 @@ export default async function handler(req, res) {
     }
 
     const token = authHeader.slice("Bearer ".length).trim();
+
     if (!token) {
       return res.status(401).json({
         error: "Missing auth token"
@@ -70,14 +71,6 @@ export default async function handler(req, res) {
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
-
-      payment_method_types: ["card", "paypal"],
-
-      billing_address_collection: "auto",
-
-      automatic_tax: {
-        enabled: false
-      },
 
       line_items: [
         {
