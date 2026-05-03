@@ -58,9 +58,7 @@ export default async function handler(req, res) {
         );
         clerkUserId = payload.sub || null;
       }
-    } catch (_) {
-      // unten sauber behandeln
-    }
+    } catch (_) {}
 
     if (!clerkUserId) {
       return res.status(401).json({
@@ -72,24 +70,34 @@ export default async function handler(req, res) {
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["card"],
+
+      // ✅ Stripe zeigt automatisch verfügbare Zahlungsmethoden an
+      automatic_payment_methods: {
+        enabled: true
+      },
+
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID,
           quantity: 1
         }
       ],
+
       success_url: `${baseUrl}/?checkout=success`,
       cancel_url: `${baseUrl}/?checkout=cancelled`,
+
       client_reference_id: clerkUserId,
+
       metadata: {
         clerk_user_id: clerkUserId
       },
+
       subscription_data: {
         metadata: {
           clerk_user_id: clerkUserId
         }
       },
+
       allow_promotion_codes: true
     });
 
