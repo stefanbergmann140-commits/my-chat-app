@@ -71,7 +71,13 @@ export default async function handler(req, res) {
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
 
-      // ❗ WICHTIG: KEIN payment_method_types hier
+      payment_method_types: ["card", "paypal"],
+
+      billing_address_collection: "auto",
+
+      automatic_tax: {
+        enabled: false
+      },
 
       line_items: [
         {
