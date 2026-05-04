@@ -209,7 +209,7 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
         ...(isMobile
           ? {
               height: 74,
-              padding: "0 14px"
+              padding: "0 7px"
             }
           : {})
       }}
@@ -234,12 +234,12 @@ function Header({ isSignedIn, isMobile, onToggleSidebar }) {
               ...headerStyles.logoImage,
               ...(isMobile
                 ? {
-                    height: 68,
-                    maxWidth: 300
+                    height: 48,
+                    maxWidth: 210
                   }
                 : {
-                    height: 92,
-                    maxWidth: 440
+                    height: 64,
+                    maxWidth: 308
                   })
             }}
           />
@@ -290,7 +290,7 @@ const headerStyles = {
     background:
       "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(8,8,8,1) 100%)",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
-    padding: "0 22px",
+    padding: "0 11px",
     flexShrink: 0,
     boxShadow: "0 8px 30px rgba(0,0,0,0.28)",
     position: "relative",
