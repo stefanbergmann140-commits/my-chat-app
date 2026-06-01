@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { Streamdown } from "streamdown";
 import remarkGfm from "remark-gfm";
 import { createClient } from "@supabase/supabase-js";
+import emailjs from "@emailjs/browser";
 import {
   SignInButton,
   UserButton,
@@ -381,21 +382,20 @@ function Footer({ isMobile }) {
     try {
       setWithdrawalSending(true);
 
-      const res = await fetch("/api/withdrawal", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
+      await emailjs.send(
+        "service_s32ie3r",
+        "template_vipi8pb",
+        {
+          name: withdrawalForm.name,
+          email: withdrawalForm.email,
+          orderNumber: withdrawalForm.orderNumber,
+          message: withdrawalForm.message,
+          to_email: "info@edmai.chat"
         },
-        body: JSON.stringify({
-          ...withdrawalForm,
-          to: "info@edmai.chat"
-        })
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Withdrawal request could not be sent.");
-      }
+        {
+          publicKey: "kBqcXBc-NoaKIt0iY"
+        }
+      );
 
       setWithdrawalSent(true);
       setWithdrawalForm({
