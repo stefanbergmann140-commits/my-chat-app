@@ -354,9 +354,61 @@ const headerStyles = {
 ========================= */
 function Footer({ isMobile }) {
   const [activeSection, setActiveSection] = useState(null);
+  const [withdrawalForm, setWithdrawalForm] = useState({
+    name: "",
+    email: "",
+    orderNumber: "",
+    message: ""
+  });
+  const [withdrawalSending, setWithdrawalSending] = useState(false);
+  const [withdrawalSent, setWithdrawalSent] = useState(false);
 
   const toggleSection = (section) => {
     setActiveSection((prev) => (prev === section ? null : section));
+  };
+
+  const updateWithdrawalField = (field, value) => {
+    setWithdrawalSent(false);
+    setWithdrawalForm((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleWithdrawalSubmit = async (event) => {
+    event.preventDefault();
+
+    try {
+      setWithdrawalSending(true);
+
+      const res = await fetch("/api/withdrawal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...withdrawalForm,
+          to: "info@edmai.chat"
+        })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || "Withdrawal request could not be sent.");
+      }
+
+      setWithdrawalSent(true);
+      setWithdrawalForm({
+        name: "",
+        email: "",
+        orderNumber: "",
+        message: ""
+      });
+    } catch (err) {
+      alert(err?.message || "Withdrawal request could not be sent.");
+    } finally {
+      setWithdrawalSending(false);
+    }
   };
 
   return (
@@ -421,7 +473,90 @@ function Footer({ isMobile }) {
             {activeSection === "support" && (
               <div>
                 <h3 style={footerStyles.title}>Support</h3>
-                <p style={footerStyles.text}>info@edmai.chat</p>
+
+                <div
+                  style={{
+                    ...footerStyles.supportGrid,
+                    ...(isMobile ? { gridTemplateColumns: "1fr" } : {})
+                  }}
+                >
+                  <div>
+                    <p style={footerStyles.text}>
+                      Email address:
+                      <br />
+                      <strong>info@edmai.chat</strong>
+                    </p>
+                  </div>
+
+                  <div style={footerStyles.withdrawalCard}>
+                    <h4 style={footerStyles.formTitle}>Withdrawal contact form</h4>
+
+                    {withdrawalSent ? (
+                      <p style={footerStyles.successText}>
+                        Your withdrawal request has been sent.
+                      </p>
+                    ) : null}
+
+                    <form onSubmit={handleWithdrawalSubmit}>
+                      <input
+                        type="text"
+                        placeholder="Name"
+                        value={withdrawalForm.name}
+                        onChange={(e) =>
+                          updateWithdrawalField("name", e.target.value)
+                        }
+                        required
+                        style={footerStyles.formInput}
+                      />
+
+                      <input
+                        type="email"
+                        placeholder="Email address"
+                        value={withdrawalForm.email}
+                        onChange={(e) =>
+                          updateWithdrawalField("email", e.target.value)
+                        }
+                        required
+                        style={footerStyles.formInput}
+                      />
+
+                      <input
+                        type="text"
+                        placeholder="Order number / customer number"
+                        value={withdrawalForm.orderNumber}
+                        onChange={(e) =>
+                          updateWithdrawalField("orderNumber", e.target.value)
+                        }
+                        style={footerStyles.formInput}
+                      />
+
+                      <textarea
+                        placeholder="Your withdrawal message"
+                        value={withdrawalForm.message}
+                        onChange={(e) =>
+                          updateWithdrawalField("message", e.target.value)
+                        }
+                        required
+                        rows={4}
+                        style={{
+                          ...footerStyles.formInput,
+                          resize: "vertical"
+                        }}
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={withdrawalSending}
+                        style={{
+                          ...footerStyles.formButton,
+                          ...(withdrawalSending ? { opacity: 0.65 } : {})
+                        }}
+                      >
+                        {withdrawalSending ? "Sending..." : "Send withdrawal"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -714,6 +849,57 @@ const footerStyles = {
     fontSize: 13,
     lineHeight: 1.6,
     margin: "0 0 14px 0"
+  },
+
+  supportGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 20,
+    alignItems: "flex-start"
+  },
+
+  withdrawalCard: {
+    background: "#111827",
+    border: "1px solid #374151",
+    borderRadius: 10,
+    padding: 14
+  },
+
+  formTitle: {
+    color: "#fff",
+    fontSize: 14,
+    marginTop: 0,
+    marginBottom: 12
+  },
+
+  formInput: {
+    width: "100%",
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+    border: "1px solid #374151",
+    background: "#0f0f0f",
+    color: "#fff",
+    boxSizing: "border-box",
+    outline: "none"
+  },
+
+  formButton: {
+    width: "100%",
+    padding: 11,
+    borderRadius: 8,
+    border: "1px solid #ffffff",
+    background: "#ffffff",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 700
+  },
+
+  successText: {
+    color: "#22c55e",
+    fontSize: 13,
+    lineHeight: 1.5,
+    margin: "0 0 10px 0"
   }
 };
 
